@@ -8,20 +8,21 @@ import numpy as np
 from datetime import datetime
 from time import time
 import xarray as xr
-import shapely
-from shapely.geometry import shape
-import fiona
-import shapely.geometry
 import rasterio.features
 import rasterio
 import dask
 
 from openeo_pg_parser.translate import translate_process_graph
 
-from odc_wrapper import Odc
+try:
+    from odc_wrapper import Odc
+except:
+    pass
 
 class OpenEO():
-    def __init__(self,jsonProcessGraph):
+    def __init__(self,jsonProcessGraph,LOCAL_TEST=0):
+        self.LOCAL_TEST = LOCAL_TEST
+        self.jsonProcessGraph = jsonProcessGraph
         self.data = None
         self.listExecutedIds = []
         self.partialResults = {}
@@ -31,7 +32,7 @@ class OpenEO():
         if self.load_data():
             for i in range(1,len(self.graph)+1):
                 if not self.process_node(i):
-                    print('END')
+                    print('[*] Processing finished!')
                     break
 
     def load_data(self): # The graph starts always with a load_collection process
@@ -77,10 +78,19 @@ class OpenEO():
                 elif 'coordinates' in node.content['arguments']['spatial_extent']:
                     # Pass coordinates to odc and process them there
                     polygon = node.content['arguments']['spatial_extent']['coordinates']
-                    
-                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=self.bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,output_crs=output_crs,polygon=polygon)
-                self.partialResults[node.id] = odc.data.to_array()
-                self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
+                if self.LOCAL_TEST==0:
+                    odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=self.bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,output_crs=output_crs,polygon=polygon)
+                    self.partialResults[node.id] = odc.data.to_array()
+                    self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
+                else:
+                    print('LOCAL TEST')
+                    datacubePath = './test_datacubes/' + self.jsonProcessGraph.split('/')[-1].split('.json')[0] + '.nc'
+                    print(datacubePath)
+                    ds = xr.open_dataset(datacubePath,chunks={})
+                    self.partialResults[node.id] = ds.to_array()
+                    self.crs = ds.spatial_ref.crs_wkt.split('AUTHORITY')[-1].replace(']', '').replace('[', '').replace('"', '').replace(',', ':')                    
+                #write_dataset_to_netcdf(odc.data,'merge_cubes4.nc')
+
                 print(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
                 self.listExecutedIds.append(node.id)
                 return True
