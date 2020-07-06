@@ -1,0 +1,237 @@
+{
+  "process_graph": {
+    "1": {
+      "process_id": "filter_temporal",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "extent": [
+          "2017-04-01",
+          "2017-05-01"
+        ]
+      }
+    },
+    "2": {
+      "process_id": "reduce_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "1"
+        },
+        "reducer": {
+          "process_graph": {
+            "1": {
+              "process_id": "mean",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                }
+              },
+              "result": true
+            }
+          }
+        },
+        "dimension": "t"
+      }
+    },
+    "3": {
+      "process_id": "rename_labels",
+      "arguments": {
+        "data": {
+          "from_node": "2"
+        },
+        "dimension": "bands",
+        "target": [
+          "G"
+        ]
+      }
+    },
+    "4": {
+      "process_id": "merge_cubes",
+      "arguments": {
+        "cube1": {
+          "from_node": "renamelabels1"
+        },
+        "cube2": {
+          "from_node": "3"
+        }
+      }
+    },
+    "5": {
+      "process_id": "filter_temporal",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "extent": [
+          "2017-05-01",
+          "2017-06-01"
+        ]
+      }
+    },
+    "6": {
+      "process_id": "reduce_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "5"
+        },
+        "reducer": {
+          "process_graph": {
+            "1": {
+              "process_id": "mean",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                }
+              },
+              "result": true
+            }
+          }
+        },
+        "dimension": "t"
+      }
+    },
+    "7": {
+      "process_id": "rename_labels",
+      "arguments": {
+        "data": {
+          "from_node": "6"
+        },
+        "dimension": "bands",
+        "target": [
+          "B"
+        ]
+      }
+    },
+    "8": {
+      "process_id": "merge_cubes",
+      "arguments": {
+        "cube1": {
+          "from_node": "4"
+        },
+        "cube2": {
+          "from_node": "7"
+        }
+      }
+    },
+    "loadcollection1": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          "B04_10m"
+        ],
+        "id": "SAO_s2_ST_Refd_10m20m60m_clouds",
+        "spatial_extent": {
+          "west": 11.04177474975586,
+          "south": 46.03653930484754,
+          "east": 11.206226348876955,
+          "north": 46.12417679163178
+        },
+        "temporal_extent": [
+          "2017-03-01",
+          "2017-06-01"
+        ]
+      }
+    },
+    "filtertemporal1": {
+      "process_id": "filter_temporal",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "extent": [
+          "2017-03-01",
+          "2017-04-01T00:00:00.000Z"
+        ]
+      }
+    },
+    "reducedimension1": {
+      "process_id": "reduce_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "filtertemporal1"
+        },
+        "dimension": "t",
+        "reducer": {
+          "process_graph": {
+            "mean1": {
+              "process_id": "mean",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                }
+              },
+              "result": true
+            }
+          },
+          "parameters": [
+            {
+              "name": "data",
+              "description": "",
+              "schema": {}
+            }
+          ]
+        }
+      }
+    },
+    "renamelabels1": {
+      "process_id": "rename_labels",
+      "arguments": {
+        "data": {
+          "from_node": "reducedimension1"
+        },
+        "dimension": "bands",
+        "target": [
+          "R"
+        ]
+      }
+    },
+    "apply1": {
+      "process_id": "apply",
+      "arguments": {
+        "data": {
+          "from_node": "8"
+        },
+        "process": {
+          "process_graph": {
+            "linearscalerange1": {
+              "process_id": "linear_scale_range",
+              "arguments": {
+                "inputMax": 3000,
+                "inputMin": 0,
+                "outputMax": 255,
+                "outputMin": 0,
+                "x": {
+                  "from_parameter": "x"
+                }
+              },
+              "result": true
+            }
+          },
+          "parameters": [
+            {
+              "name": "x",
+              "description": "",
+              "schema": {}
+            }
+          ]
+        }
+      }
+    },
+    "saveresult1": {
+      "process_id": "save_result",
+      "arguments": {
+        "data": {
+          "from_node": "apply1"
+        },
+        "format": "PNG",
+        "options": {
+          "red": "R",
+          "green": "G",
+          "blue": "B"
+        }
+      },
+      "result": true
+    }
+  }
+}
