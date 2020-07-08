@@ -258,7 +258,16 @@ class OpenEO():
         if processName == 'apply':
             source = node.content['arguments']['process']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
-
+                           
+        if processName == 'mask':
+            print(node.content)
+            maskSource = node.content['arguments']['mask']['from_node']
+            dataSource = node.content['arguments']['data']['from_node']
+            self.partialResults[node.id] = self.partialResults[dataSource].where(self.partialResults[maskSource])
+            if 'replacement' in node.content['arguments']:
+                burnValue  = node.content['arguments']['replacement']
+                self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
+            
         if processName == 'save_result':
             outFormat = node.content['arguments']['format']
             source = node.content['arguments']['data']['from_node']
