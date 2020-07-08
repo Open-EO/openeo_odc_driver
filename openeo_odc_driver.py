@@ -100,7 +100,7 @@ class OpenEO():
         processName = node.content['process_id']
         print("Process id: {} Process name: {}".format(node.id,processName))
                   
-        if processName in ['multiply','divide','subtract','add']:
+        if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte']:
             if isinstance(node.content['arguments']['x'],float) or isinstance(node.content['arguments']['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
                 x = node.content['arguments']['x']
             else:
@@ -117,6 +117,15 @@ class OpenEO():
                 self.partialResults[node.id] = x - y
             elif processName == 'add':
                 self.partialResults[node.id] = x + y
+            elif processName == 'lt':
+                self.partialResults[node.id] = x < y
+            elif processName == 'lte':
+                self.partialResults[node.id] = x <= y
+            elif processName == 'gt':
+                self.partialResults[node.id] = x > y
+            elif processName == 'gte':
+                self.partialResults[node.id] = x >= y
+        
         
         if processName == 'sum':
             x = 0
@@ -314,12 +323,7 @@ class OpenEO():
             if outFormat=='netcdf':
                 self.partialResults[source].to_netcdf('output.nc')
                 return 0
-            
-           
-            # self.data.set_crs(self.crs)
-            # rds4326 = self.data.rio.reproject("epsg:4326")
-            # print(rds4326.rio.crs)
-            
+                        
             return 0 # Save result is the end of the process graph
 
         self.listExecutedIds.append(node.id) # Store the processed nodes ids
