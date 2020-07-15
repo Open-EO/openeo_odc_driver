@@ -147,6 +147,14 @@ class OpenEO():
                 if i==0: self.partialResults[node.id] = x
                 else: self.partialResults[node.id] *= x
         
+        if processName == 'sqrt':
+            print(node.content['arguments']['x'])
+            x = node.content['arguments']['x']
+            if isinstance(x,float) or isinstance(x,int):        # We have to distinguish when the input data is a number or a datacube from a previous process
+                self.partialResults[node.id] = np.sqrt(x)
+            else:
+                self.partialResults[node.id] = np.sqrt(self.partialResults[x['from_node']])
+
         if processName == 'array_element':
             source = node.content['arguments']['data']['from_node']
             if 'label' in node.content['arguments']:
