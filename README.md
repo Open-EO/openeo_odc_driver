@@ -11,7 +11,7 @@ cd openeo_odc_driver
 conda env create -f environment.yml
 conda activate openeo_odc_driver
 git clone https://github.com/Open-EO/openeo-pg-parser-python.git
-python openeo-pg-parser/setup.py install
+python openeo-pg-parser-python/setup.py install
 ```
 ## Step 3: Test with local datacube
 ```
