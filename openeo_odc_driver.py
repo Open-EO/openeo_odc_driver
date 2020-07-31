@@ -146,23 +146,30 @@ class OpenEO():
                     x = self.partialResults[d['from_node']]
                 if i==0: self.partialResults[node.id] = x
                 else: self.partialResults[node.id] *= x
-        
+                        
         if processName == 'sqrt':
-            print(node.content['arguments']['x'])
             x = node.content['arguments']['x']
             if isinstance(x,float) or isinstance(x,int):        # We have to distinguish when the input data is a number or a datacube from a previous process
                 self.partialResults[node.id] = np.sqrt(x)
             else:
                 self.partialResults[node.id] = np.sqrt(self.partialResults[x['from_node']])
+                        
+        if processName in ['and', 'or', 'not']:
+            print(node.content)
+
 
         if processName == 'array_element':
             source = node.content['arguments']['data']['from_node']
+#             print(self.partialResults[source].values)
             if 'label' in node.content['arguments']:
                 bandLabel = node.content['arguments']['label']
+                self.partialResults[node.id] = self.partialResults[source].loc[dict(variable=bandLabel)]
             elif 'index' in node.content['arguments']:
-                bandLabel = self.bands[node.content['arguments']['index']]
-            self.partialResults[node.id] = self.partialResults[source].loc[dict(variable=bandLabel)]
-                    
+                index = node.content['arguments']['index']
+                self.partialResults[node.id] = self.partialResults[source][index]
+#                 print(self.partialResults[node.id].values)
+            
+            
         if processName == 'normalized_difference':
             def normalized_difference(x,y):
                 return (x-y)/(x+y)
@@ -170,9 +177,11 @@ class OpenEO():
             ySource = (node.content['arguments']['y']['from_node'])
             self.partialResults[node.id] = normalized_difference(self.partialResults[xSource],self.partialResults[ySource])
 
+            
         if processName == 'reduce_dimension':
             source = node.content['arguments']['reducer']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
+            
 
         if processName == 'max':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the max
@@ -218,6 +227,29 @@ class OpenEO():
                 self.partialResults[node.id] = self.partialResults[source].mean('y')
             else:
                 print('[!] Mean along dimension {} not yet implemented.'.format(dim))
+                
+        if processName == 'median':
+            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the median
+            dim = parent.content['arguments']['dimension']
+            source = node.content['arguments']['data']['from_node']
+            if dim in ['t','temporal']:
+                self.partialResults[node.id] = self.partialResults[source].median('time')
+            elif dim in ['bands']:
+                self.partialResults[node.id] = self.partialResults[source].median('variable')
+            elif dim in ['x']:
+                self.partialResults[node.id] = self.partialResults[source].median('x')
+            elif dim in ['y']:
+                self.partialResults[node.id] = self.partialResults[source].median('y')
+            else:
+                print('[!] Median along dimension {} not yet implemented.'.format(dim))
+                        
+        if processName == 'power':
+            dim = node.content['arguments']['base']
+            if isinstance(node.content['arguments']['base'],float) or isinstance(node.content['arguments']['base'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
+                x = node.content['arguments']['base']
+            else:
+                x = self.partialResults[node.content['arguments']['base']['from_node']]
+            self.partialResults[node.id] = x**node.content['arguments']['p']
         
         if processName == 'absolute':
             source = node.content['arguments']['x']['from_node']
@@ -253,25 +285,29 @@ class OpenEO():
         if processName == 'rename_labels':
             source = node.content['arguments']['data']['from_node']
             label_target = (node.content['arguments']['target'])[0]
-            label_source = self.partialResults[source].to_dataset().variable.item(0)
+            label_source = self.partialResults[source].to_dataset(name='tmp').variable.item(0)
             tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
             tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
             self.partialResults[node.id] = tmp.to_array()
         
         if processName == 'merge_cubes':
-            cube1 = node.content['arguments']['cube1']['from_node']
-            cube2 = node.content['arguments']['cube2']['from_node']
-            self.partialResults[node.id] = xr.concat([self.partialResults[cube1],self.partialResults[cube2]],dim='variable')
+            if 'overlap_resolver' in node.content['arguments']:
+                self.partialResults[node.id] = self.partialResults[node.content['arguments']['overlap_resolver']['from_node']]
+            else:
+                cube1 = node.content['arguments']['cube1']['from_node']
+                cube2 = node.content['arguments']['cube2']['from_node']
+                ds1 = self.partialResults[cube1]
+                ds2 = self.partialResults[cube2]
+                self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
             
         if processName == 'apply':
             source = node.content['arguments']['process']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
                            
         if processName == 'mask':
-            print(node.content)
             maskSource = node.content['arguments']['mask']['from_node']
             dataSource = node.content['arguments']['data']['from_node']
-            self.partialResults[node.id] = self.partialResults[dataSource].where(self.partialResults[maskSource])
+            self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(self.partialResults[maskSource]))
             if 'replacement' in node.content['arguments']:
                 burnValue  = node.content['arguments']['replacement']
                 self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
@@ -333,14 +369,21 @@ class OpenEO():
 
             if outFormat=='GTiff':
                 import rioxarray
+                if len(self.partialResults[source].dims) > 3:
+                    self.partialResults[source] = self.partialResults[source].squeeze('time')
                 self.partialResults[source] = self.partialResults[source].to_dataset(name='result').assign_attrs(crs=self.crs)
                 self.partialResults[source].result.rio.to_raster("output.tif")
                 return 0
             
-            if outFormat=='netcdf':
+            if outFormat=='NETCDF':
                 self.partialResults[source].to_netcdf('output.nc')
                 return 0
-                        
+            
+           
+            # self.data.set_crs(self.crs)
+            # rds4326 = self.data.rio.reproject("epsg:4326")
+            # print(rds4326.rio.crs)
+            
             return 0 # Save result is the end of the process graph
 
         self.listExecutedIds.append(node.id) # Store the processed nodes ids
