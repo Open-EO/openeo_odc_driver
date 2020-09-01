@@ -11,6 +11,7 @@ import xarray as xr
 import rasterio.features
 import rasterio
 import dask
+import os
 
 from openeo_pg_parser.translate import translate_process_graph
 
@@ -29,77 +30,77 @@ class OpenEO():
         self.crs = None
         self.bands = None
         self.graph = translate_process_graph(jsonProcessGraph).sort(by='dependency')
-        if self.load_data():
-            for i in range(1,len(self.graph)+1):
-                if not self.process_node(i):
-                    print('[*] Processing finished!')
-                    break
+        self.i = 0
+        for i in range(0,len(self.graph)+1):
+            if not self.process_node(i):
+                print('[*] Processing finished!')
+                break
 
-    def load_data(self): # The graph starts always with a load_collection process
-        for node in self.graph:
-            processName = node.content['process_id']
-            if processName == 'load_collection':
-                print("Process id: {} Process name: {}".format(node.id,processName))
-                defaultTimeStart = '1970-01-01'
-                defaultTimeEnd = str(datetime.now()).split(' ')[0] # Today is the default date for timeEnd, to include all the dates if not specified
-                timeStart   = defaultTimeStart
-                timeEnd     = defaultTimeEnd
-                collection  = None
-                lowLat      = None
-                highLat     = None
-                lowLon      = None
-                highLon     = None
-                self.bands  = None # List of bands, we may need it in the array_element process
-                resolutions = None # Touple
-                output_crs  = None
-                polygon     = None
-                if 'bands' in node.content['arguments']:
-                    self.bands = node.content['arguments']['bands']
-                    if self.bands == []: self.bands = None
-                        
-                collection = node.content['arguments']['id']
-                if collection is None:
-                    raise Exception('[!] You must provide a collection which provides the data!')
-                
-                if node.content['arguments']['temporal_extent'] is not None:
-                    timeStart  = node.content['arguments']['temporal_extent'][0]
-                    timeEnd    = node.content['arguments']['temporal_extent'][1]
-                    
-                # If there is a bounding-box or a polygon we set the variables, otherwise we pass the defaults    
-                if 'south' in node.content['arguments']['spatial_extent'] and \
-                   'north' in node.content['arguments']['spatial_extent'] and \
-                   'east'  in node.content['arguments']['spatial_extent'] and \
-                   'west'  in node.content['arguments']['spatial_extent']:
-                    lowLat     = node.content['arguments']['spatial_extent']['south']
-                    highLat    = node.content['arguments']['spatial_extent']['north']
-                    lowLon     = node.content['arguments']['spatial_extent']['east']
-                    highLon    = node.content['arguments']['spatial_extent']['west']
-                    
-                elif 'coordinates' in node.content['arguments']['spatial_extent']:
-                    # Pass coordinates to odc and process them there
-                    polygon = node.content['arguments']['spatial_extent']['coordinates']
-                if self.LOCAL_TEST==0:
-                    odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=self.bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,output_crs=output_crs,polygon=polygon)
-                    self.partialResults[node.id] = odc.data.to_array()
-                    self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
-                else:
-                    print('LOCAL TEST')
-                    datacubePath = './test_datacubes/' + self.jsonProcessGraph.split('/')[-1].split('.json')[0] + '.nc'
-                    print(datacubePath)
-                    ds = xr.open_dataset(datacubePath,chunks={})
-                    self.partialResults[node.id] = ds.to_array()
-                    self.crs = ds.spatial_ref.crs_wkt.split('AUTHORITY')[-1].replace(']', '').replace('[', '').replace('"', '').replace(',', ':')                    
-                #write_dataset_to_netcdf(odc.data,'merge_cubes4.nc')
-
-                print(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
-                self.listExecutedIds.append(node.id)
-                return True
-        
     def process_node(self,i):
         node = self.graph[i]
         processName = node.content['process_id']
         print("Process id: {} Process name: {}".format(node.id,processName))
-                  
+        processName = node.content['process_id']
+        
+        if processName == 'load_collection':
+            defaultTimeStart = '1970-01-01'
+            defaultTimeEnd = str(datetime.now()).split(' ')[0] # Today is the default date for timeEnd, to include all the dates if not specified
+            timeStart   = defaultTimeStart
+            timeEnd     = defaultTimeEnd
+            collection  = None
+            lowLat      = None
+            highLat     = None
+            lowLon      = None
+            highLon     = None
+            self.bands  = None # List of bands, we may need it in the array_element process
+            resolutions = None # Touple
+            output_crs  = None
+            polygon     = None
+            if 'bands' in node.content['arguments']:
+                self.bands = node.content['arguments']['bands']
+                if self.bands == []: self.bands = None
+                    
+            collection = node.content['arguments']['id']
+            if collection is None:
+                raise Exception('[!] You must provide a collection which provides the data!')
+            
+            if node.content['arguments']['temporal_extent'] is not None:
+                timeStart  = node.content['arguments']['temporal_extent'][0]
+                timeEnd    = node.content['arguments']['temporal_extent'][1]
+                
+            # If there is a bounding-box or a polygon we set the variables, otherwise we pass the defaults    
+            if 'south' in node.content['arguments']['spatial_extent'] and \
+               'north' in node.content['arguments']['spatial_extent'] and \
+               'east'  in node.content['arguments']['spatial_extent'] and \
+               'west'  in node.content['arguments']['spatial_extent']:
+                lowLat     = node.content['arguments']['spatial_extent']['south']
+                highLat    = node.content['arguments']['spatial_extent']['north']
+                lowLon     = node.content['arguments']['spatial_extent']['east']
+                highLon    = node.content['arguments']['spatial_extent']['west']
+                
+            elif 'coordinates' in node.content['arguments']['spatial_extent']:
+                # Pass coordinates to odc and process them there
+                polygon = node.content['arguments']['spatial_extent']['coordinates']
+            if self.LOCAL_TEST==0:
+                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=self.bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,output_crs=output_crs,polygon=polygon)
+                self.partialResults[node.id] = odc.data.to_array()
+                self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
+            else:
+                print('LOCAL TEST')
+                if self.i==0:
+                    datacubePath = './test_datacubes/' + os.path.split(self.jsonProcessGraph)[1].split('.json')[0] + '.nc'
+                    print(datacubePath)
+                    self.i += 1
+                else:
+                    datacubePath = './test_datacubes/' + os.path.split(self.jsonProcessGraph)[1].split('.json')[0] + str(self.i) + '.nc'
+
+                ds = xr.open_dataset(datacubePath,chunks={})
+                self.partialResults[node.id] = ds.to_array()
+                #self.crs = ds.spatial_ref.crs_wkt.split('AUTHORITY')[-1].replace(']', '').replace('[', '').replace('"', '').replace(',', ':')     
+                
+            #write_dataset_to_netcdf(odc.data,'merge_cubes4.nc')
+            print(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
+              
         if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte']:
             if isinstance(node.content['arguments']['x'],float) or isinstance(node.content['arguments']['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
                 x = node.content['arguments']['x']
@@ -181,8 +182,11 @@ class OpenEO():
         if processName == 'reduce_dimension':
             source = node.content['arguments']['reducer']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
+        
+        if processName == 'aggregate_spatial_window':
+            source = node.content['arguments']['reducer']['from_node']
+            self.partialResults[node.id] = self.partialResults[source]
             
-
         if processName == 'max':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the max
             dim = parent.content['arguments']['dimension']
@@ -215,18 +219,24 @@ class OpenEO():
         
         if processName == 'mean':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
-            dim = parent.content['arguments']['dimension']
             source = node.content['arguments']['data']['from_node']
-            if dim in ['t','temporal']:
-                self.partialResults[node.id] = self.partialResults[source].mean('time')
-            elif dim in ['bands']:
-                self.partialResults[node.id] = self.partialResults[source].mean('variable')
-            elif dim in ['x']:
-                self.partialResults[node.id] = self.partialResults[source].mean('x')
-            elif dim in ['y']:
-                self.partialResults[node.id] = self.partialResults[source].mean('y')
+            if parent.content['process_id'] == 'aggregate_spatial_window':
+                xDim = parent.content['arguments']['xDim']
+                yDim = parent.content['arguments']['yDim'] 
+                self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').mean().coarsen(y=yDim,boundary = 'pad').mean()
+                print(self.partialResults[node.id])
             else:
-                print('[!] Mean along dimension {} not yet implemented.'.format(dim))
+                dim = parent.content['arguments']['dimension']
+                if dim in ['t','temporal']:
+                    self.partialResults[node.id] = self.partialResults[source].mean('time')
+                elif dim in ['bands']:
+                    self.partialResults[node.id] = self.partialResults[source].mean('variable')
+                elif dim in ['x']:
+                    self.partialResults[node.id] = self.partialResults[source].mean('x')
+                elif dim in ['y']:
+                    self.partialResults[node.id] = self.partialResults[source].mean('y')
+                else:
+                    print('[!] Mean along dimension {} not yet implemented.'.format(dim))
                 
         if processName == 'median':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the median
@@ -284,21 +294,30 @@ class OpenEO():
 
         if processName == 'rename_labels':
             source = node.content['arguments']['data']['from_node']
-            label_target = (node.content['arguments']['target'])[0]
-            label_source = self.partialResults[source].to_dataset(name='tmp').variable.item(0)
-            tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
-            tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
+            try:
+                len(self.partialResults[source].coords['time'])
+                tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
+            except:
+                tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
+            for i in range(len(node.content['arguments']['target'])):
+                label_target = node.content['arguments']['target'][i]
+                if node.content['arguments']['source']:
+                    label_source = node.content['arguments']['source'][i]
+                    tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
+                else:
+                    try:
+                        self.partialResults[source].coords['variable']
+                        tmp = tmp.assign({label_target:self.partialResults[source][i]})
+                    except:
+                        tmp = tmp.assign({label_target:self.partialResults[source]})
             self.partialResults[node.id] = tmp.to_array()
         
         if processName == 'merge_cubes':
-            if 'overlap_resolver' in node.content['arguments']:
-                self.partialResults[node.id] = self.partialResults[node.content['arguments']['overlap_resolver']['from_node']]
-            else:
-                cube1 = node.content['arguments']['cube1']['from_node']
-                cube2 = node.content['arguments']['cube2']['from_node']
-                ds1 = self.partialResults[cube1]
-                ds2 = self.partialResults[cube2]
-                self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
+            cube1 = node.content['arguments']['cube1']['from_node']
+            cube2 = node.content['arguments']['cube2']['from_node']
+            ds1 = self.partialResults[cube1]
+            ds2 = self.partialResults[cube2]
+            self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
             
         if processName == 'apply':
             source = node.content['arguments']['process']['from_node']
