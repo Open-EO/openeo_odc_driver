@@ -161,5 +161,4 @@ dependencies:
     - requests==2.24.0
     - texttable==1.6.2
     - urllib3==1.25.9
-prefix: /home/mclaus@eurac.edu/miniconda3/envs/dask
 
