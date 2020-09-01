@@ -13,6 +13,8 @@ conda activate openeo_odc_driver
 git clone https://github.com/Open-EO/openeo-pg-parser-python.git
 python openeo-pg-parser-python/setup.py install
 ```
+If the environment creation step fails please create a Python 3.7 environment environment with the following libraries:
+gdal, xarray, rioxarray, dask, numpy, scipy, opencv and their dependencies.
 ## Step 3: Test with local datacube
 ```
 python main.py ./process_graphs/EVI_L1C_D22.json --local 1
