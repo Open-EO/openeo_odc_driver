@@ -155,9 +155,15 @@ class OpenEO():
             else:
                 self.partialResults[node.id] = np.sqrt(self.partialResults[x['from_node']])
                         
-        if processName in ['and', 'or', 'not']:
-            print(node.content)
-
+        if processName in ['and', 'or']:
+            if processName == 'and':
+                x = node.content['arguments']['x']['from_node']
+                y = node.content['arguments']['y']['from_node']
+                self.partialResults[node.id] = np.bitwise_and(self.partialResults[x],self.partialResults[y])
+            if processName == 'or':
+                x = node.content['arguments']['x']['from_node']
+                y = node.content['arguments']['y']['from_node']
+                self.partialResults[node.id] = np.bitwise_or(self.partialResults[x],self.partialResults[y])
 
         if processName == 'array_element':
             source = node.content['arguments']['data']['from_node']
