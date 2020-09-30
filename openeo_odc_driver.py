@@ -44,18 +44,19 @@ class OpenEO():
         
         if processName == 'load_collection':
             defaultTimeStart = '1970-01-01'
-            defaultTimeEnd = str(datetime.now()).split(' ')[0] # Today is the default date for timeEnd, to include all the dates if not specified
-            timeStart   = defaultTimeStart
-            timeEnd     = defaultTimeEnd
-            collection  = None
-            lowLat      = None
-            highLat     = None
-            lowLon      = None
-            highLon     = None
-            self.bands  = None # List of bands, we may need it in the array_element process
-            resolutions = None # Touple
-            output_crs  = None
-            polygon     = None
+            defaultTimeEnd   = str(datetime.now()).split(' ')[0] # Today is the default date for timeEnd, to include all the dates if not specified
+            timeStart        = defaultTimeStart
+            timeEnd          = defaultTimeEnd
+            collection       = None
+            lowLat           = None
+            highLat          = None
+            lowLon           = None
+            highLon          = None
+            self.bands       = None # List of bands, we may need it in the array_element process
+            resolutions      = None # Tuple
+            outputCrs        = None
+            resamplingMethod = None
+            polygon          = None
             if 'bands' in node.content['arguments']:
                 self.bands = node.content['arguments']['bands']
                 if self.bands == []: self.bands = None
@@ -68,21 +69,51 @@ class OpenEO():
                 timeStart  = node.content['arguments']['temporal_extent'][0]
                 timeEnd    = node.content['arguments']['temporal_extent'][1]
                 
-            # If there is a bounding-box or a polygon we set the variables, otherwise we pass the defaults    
-            if 'south' in node.content['arguments']['spatial_extent'] and \
-               'north' in node.content['arguments']['spatial_extent'] and \
-               'east'  in node.content['arguments']['spatial_extent'] and \
-               'west'  in node.content['arguments']['spatial_extent']:
-                lowLat     = node.content['arguments']['spatial_extent']['south']
-                highLat    = node.content['arguments']['spatial_extent']['north']
-                lowLon     = node.content['arguments']['spatial_extent']['east']
-                highLon    = node.content['arguments']['spatial_extent']['west']
+            # If there is a bounding-box or a polygon we set the variables, otherwise we pass the defaults
+            if 'spatial_extent' in node.content['arguments']:
+                if 'south' in node.content['arguments']['spatial_extent'] and \
+                   'north' in node.content['arguments']['spatial_extent'] and \
+                   'east'  in node.content['arguments']['spatial_extent'] and \
+                   'west'  in node.content['arguments']['spatial_extent']:
+                    lowLat     = node.content['arguments']['spatial_extent']['south']
+                    highLat    = node.content['arguments']['spatial_extent']['north']
+                    lowLon     = node.content['arguments']['spatial_extent']['east']
+                    highLon    = node.content['arguments']['spatial_extent']['west']
                 
-            elif 'coordinates' in node.content['arguments']['spatial_extent']:
-                # Pass coordinates to odc and process them there
-                polygon = node.content['arguments']['spatial_extent']['coordinates']
+                elif 'coordinates' in node.content['arguments']['spatial_extent']:
+                    # Pass coordinates to odc and process them there
+                    polygon = node.content['arguments']['spatial_extent']['coordinates']
+                    
+            for n in self.graph: # Let's look for resample_spatial nodes
+                parentID = 0
+                if n.content['process_id'] == 'resample_spatial':
+                    for n_0 in n.dependencies: # Check if the (or one of the) resample_spatial process is related to this load_collection
+                        parentID = n_0.id
+                        continue
+                    if parentID == node.id: # The found resample_spatial comes right after the current load_collection, let's apply the resampling to the query
+                        if 'resolution' in n.content['arguments']:
+                            res = n.content['arguments']['resolution']
+                            if isinstance(res,float) or isinstance(res,int):
+                                resolutions = (res,res)
+                            elif len(res) == 2:
+                                resolutions = (res[0],res[1])
+                            else:
+                                print('error')
+                        
+                        if 'projection' in n.content['arguments']:
+                            projection = n.content['arguments']['projection']
+                            if isinstance(projection,int):           # Check if it's an EPSG code and append 'epsg:' to it, without ODC returns an error
+                                projection = 'epsg:' + str(projection)
+                            else:
+                                print('This type of reprojection is not yet implemented')
+                            outputCrs = projection
+
+                        if 'method' in n.content['arguments']:
+                            resamplingMethod = n.content['arguments']['method']
+            
             if self.LOCAL_TEST==0:
-                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=self.bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,output_crs=output_crs,polygon=polygon)
+                print(resolutions)
+                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=self.bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod)
                 self.partialResults[node.id] = odc.data.to_array()
                 self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
             else:
@@ -94,6 +125,7 @@ class OpenEO():
                 else:
                     datacubePath = './test_datacubes/' + os.path.split(self.jsonProcessGraph)[1].split('.json')[0] + str(self.i) + '.nc'
 
+                print(datacubePath)
                 ds = xr.open_dataset(datacubePath,chunks={})
                 self.partialResults[node.id] = ds.to_array()
                 #self.crs = ds.spatial_ref.crs_wkt.split('AUTHORITY')[-1].replace(']', '').replace('[', '').replace('"', '').replace(',', ':')     
@@ -101,6 +133,31 @@ class OpenEO():
             #write_dataset_to_netcdf(odc.data,'merge_cubes4.nc')
             print(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
               
+        if processName == 'resample_spatial':
+            source = node.content['arguments']['data']['from_node']
+            self.partialResults[node.id] = self.partialResults[source]
+            
+        if processName == 'resample_cube_temporal':
+            print(node.content['arguments'])
+            target = node.content['arguments']['target']['from_node']
+            source = node.content['arguments']['data']['from_node']
+            def nearest(items, pivot):
+                return min(items, key=lambda x: abs(x - pivot))
+            def resample_temporal(sourceCube,targetCube):
+                # Find in sourceCube the closest dates to tergetCube
+                newTime = []
+                for i,targetTime in enumerate(targetCube.time):
+                    nearT = nearest(sourceCube.time.values,targetTime.values)
+                    if i==0:
+                        tmp = sourceCube.loc[dict(time=nearT)]
+                    else:
+                        tmp = xr.concat([tmp,sourceCube.loc[dict(time=nearT)]], dim='time')
+                tmp['time'] = targetCube.time
+                return tmp
+            
+            self.partialResults[node.id] = resample_temporal(self.partialResults[source],self.partialResults[target])
+            print(self.partialResults[node.id])        
+                
         if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte']:
             if isinstance(node.content['arguments']['x'],float) or isinstance(node.content['arguments']['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
                 x = node.content['arguments']['x']
@@ -230,7 +287,6 @@ class OpenEO():
                 xDim = parent.content['arguments']['xDim']
                 yDim = parent.content['arguments']['yDim'] 
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').mean().coarsen(y=yDim,boundary = 'pad').mean()
-                print(self.partialResults[node.id])
             else:
                 dim = parent.content['arguments']['dimension']
                 if dim in ['t','temporal']:
@@ -324,7 +380,31 @@ class OpenEO():
             ds1 = self.partialResults[cube1]
             ds2 = self.partialResults[cube2]
             self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
-            
+
+        if processName == 'if':
+            acceptVal = None
+            rejectVal = None
+            valueVal  = None
+
+            if isinstance(node.content['arguments']['reject'],float) or isinstance(node.content['arguments']['reject'],int):
+                rejectVal = node.content['arguments']['reject']
+            else:   
+                reject = node.content['arguments']['reject']['from_node']
+                rejectVal = self.partialResults[reject]
+            if isinstance(node.content['arguments']['accept'],float) or isinstance(node.content['arguments']['accept'],int):
+                acceptVal = node.content['arguments']['accept']
+            else:   
+                accept = node.content['arguments']['accept']['from_node']
+                acceptVal = self.partialResults[accept]
+            if isinstance(node.content['arguments']['value'],float) or isinstance(node.content['arguments']['value'],int):
+                valueVal = node.content['arguments']['value']
+            else:   
+                value = node.content['arguments']['value']['from_node']
+                valueVal = self.partialResults[value]
+            tmpAccept = valueVal * acceptVal
+            tmpReject = xr.ufuncs.logical_not(valueVal) * rejectVal
+            self.partialResults[node.id] = tmpAccept + tmpReject
+
         if processName == 'apply':
             source = node.content['arguments']['process']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
@@ -392,7 +472,7 @@ class OpenEO():
                 cv2.imwrite('ouput.png',bgr)
                 return 0
 
-            if outFormat=='GTiff':
+            if outFormat=='GTiff' or outFormat=='GTIFF':
                 import rioxarray
                 if len(self.partialResults[source].dims) > 3:
                     self.partialResults[source] = self.partialResults[source].squeeze('time')

@@ -17,7 +17,7 @@ from datacube.drivers.netcdf import write_dataset_to_netcdf
 
 class Odc:
     def __init__(self,collections=None,timeStart=None,timeEnd=None,lowLat=None,\
-                 highLat=None,lowLon=None,highLon=None,bands=None,resolutions=None,output_crs=None,polygon=None):
+                 highLat=None,lowLon=None,highLon=None,bands=None,resolutions=None,outputCrs=None,polygon=None,resamplingMethod=None):
 
         self.dc = datacube.Datacube(app = "Sentinel", config = '/home/mclaus@eurac.edu/.datacube.conf')
         #self.platform = 'SENTINEL_2A'
@@ -30,7 +30,8 @@ class Odc:
         self.highLon     = highLon
         self.bands       = bands
         self.resolutions = resolutions
-        self.output_crs  = output_crs
+        self.outputCrs   = outputCrs
+        self.resamplingMethod = resamplingMethod
         self.polygon     = polygon
         self.geoms       = None
         self.data        = None
@@ -55,14 +56,15 @@ class Odc:
             query['longitude'] = (self.lowLon,self.highLon)
         if self.resolutions is not None:
             query['resolution'] = self.resolutions
-        if self.output_crs  is not None:
-            query['output_crs'] = self.output_crs
-        print(query)
+        if self.outputCrs  is not None:
+            query['output_crs'] = self.outputCrs
+        if self.resamplingMethod  is not None:
+            query['resampling'] = self.resamplingMethod
         self.query = query
             
     def load_collection(self):
         datasets  = self.dc.find_datasets(time=(self.timeStart,self.timeEnd),**self.query)
-        self.query['dask_chunks'] = {}                                                      # This let us load the data as Dask chunks instead of numpy arrays
+        self.query['dask_chunks'] = {"x": 1000, "y":1000}                                                     # This let us load the data as Dask chunks instead of numpy arrays
         self.data = self.dc.load(datasets=datasets,**self.query)
     
     def list_measurements(self):                                                            # Get all the bands available in the loaded data as a list of strings
