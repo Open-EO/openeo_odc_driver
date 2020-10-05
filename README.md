@@ -20,3 +20,47 @@ gdal, xarray, rioxarray, dask, numpy, scipy, opencv and their dependencies.
 python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 ```
 
+## Implemented OpenEO processes
+
+- load_collection
+- save_result (PNG,GTIFF,NETCDF)
+- resample_spatial
+- multiply
+- divide
+- subtract
+- add
+- lt
+- lte
+- gt
+- gte
+- eq
+- neq
+- and
+- or
+- sum
+- product
+- sqrt
+- array_element
+- normalized_difference
+- reduce_dimension (dimensions: t (or temporal), bands)
+- min
+- max
+- mean
+- median
+- power
+- absolute
+- linear_scale_range
+- filter_bands
+- filter_temporal
+- rename_labels
+- merge_cubes
+- apply
+- mask
+
+# Experimetnal processes
+- resample_cube_temporal
+- aggregate_spatial_window
+
+
+
+
