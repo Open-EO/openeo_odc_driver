@@ -58,7 +58,7 @@ python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 - apply
 - mask
 
-# Experimetnal processes
+# Experimental processes
 - resample_cube_temporal
 - aggregate_spatial_window
 
