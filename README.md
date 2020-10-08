@@ -10,7 +10,7 @@ cd openeo_odc_driver
 ```
 conda env create -f environment.yml
 conda activate openeo_odc_driver
-git clone https://github.com/Open-EO/openeo-pg-parser-python.git
+git clone https://github.com/clausmichele/openeo-pg-parser-python.git
 python openeo-pg-parser-python/setup.py install
 ```
 If the environment creation step fails please create a Python 3.7 environment environment with the following libraries:
