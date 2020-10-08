@@ -12,14 +12,16 @@ import rasterio.features
 import rasterio
 import dask
 import os
-
+from dask.distributed import Client
 from openeo_pg_parser.translate import translate_process_graph
+
+client = Client()
 
 try:
     from odc_wrapper import Odc
 except:
     pass
-
+    
 class OpenEO():
     def __init__(self,jsonProcessGraph,LOCAL_TEST=0):
         self.LOCAL_TEST = LOCAL_TEST
@@ -183,27 +185,43 @@ class OpenEO():
                 self.partialResults[node.id] = x > y
             elif processName == 'gte':
                 self.partialResults[node.id] = x >= y
+            elif processName == 'eq':
+                self.partialResults[node.id] = x == y
+            elif processName == 'neq':
+                self.partialResults[node.id] = x != y
         
         
         if processName == 'sum':
-            x = 0
-            for i,d in enumerate(node.content['arguments']['data']):
-                if isinstance(d,float) or isinstance(d,int):         # We have to distinguish when the input data is a number or a datacube from a previous process
-                    x = d
-                else:
-                    x = self.partialResults[d['from_node']].astype(float)
-                if i==0: self.partialResults[node.id] = x
-                else: self.partialResults[node.id] += x
+            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
+            if parent.content['process_id'] == 'aggregate_spatial_window':
+                source = node.content['arguments']['data']['from_node']
+                xDim, yDim = parent.content['arguments']['size']
+                self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').sum().coarsen(y=yDim,boundary = 'pad').sum()
+            else:
+                x = 0
+                for i,d in enumerate(node.content['arguments']['data']):
+                    if isinstance(d,float) or isinstance(d,int):         # We have to distinguish when the input data is a number or a datacube from a previous process
+                        x = d
+                    else:
+                        x = self.partialResults[d['from_node']].astype(float)
+                    if i==0: self.partialResults[node.id] = x
+                    else: self.partialResults[node.id] += x
                 
         if processName == 'product':
-            x = 0
-            for i,d in enumerate(node.content['arguments']['data']):
-                if isinstance(d,float) or isinstance(d,int):        # We have to distinguish when the input data is a number or a datacube from a previous process
-                    x = d
-                else:
-                    x = self.partialResults[d['from_node']]
-                if i==0: self.partialResults[node.id] = x
-                else: self.partialResults[node.id] *= x
+            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
+            if parent.content['process_id'] == 'aggregate_spatial_window':
+                source = node.content['arguments']['data']['from_node']
+                xDim, yDim = parent.content['arguments']['size']
+                self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').prod().coarsen(y=yDim,boundary = 'pad').prod()
+            else:
+                x = 0
+                for i,d in enumerate(node.content['arguments']['data']):
+                    if isinstance(d,float) or isinstance(d,int):        # We have to distinguish when the input data is a number or a datacube from a previous process
+                        x = d
+                    else:
+                        x = self.partialResults[d['from_node']]
+                    if i==0: self.partialResults[node.id] = x
+                    else: self.partialResults[node.id] *= x
                         
         if processName == 'sqrt':
             x = node.content['arguments']['x']
@@ -251,41 +269,48 @@ class OpenEO():
             self.partialResults[node.id] = self.partialResults[source]
             
         if processName == 'max':
-            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the max
-            dim = parent.content['arguments']['dimension']
+            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             source = node.content['arguments']['data']['from_node']
-            if dim in ['t','temporal']:
-                self.partialResults[node.id] = self.partialResults[source].max('time')
-            elif dim in ['bands']:
-                self.partialResults[node.id] = self.partialResults[source].max('variable')
-            elif dim in ['x']:
-                self.partialResults[node.id] = self.partialResults[source].max('x')
-            elif dim in ['y']:
-                self.partialResults[node.id] = self.partialResults[source].max('y')
+            if parent.content['process_id'] == 'aggregate_spatial_window':
+                xDim, yDim = parent.content['arguments']['size']
+                self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').max().coarsen(y=yDim,boundary = 'pad').max()
             else:
-                print('[!] Max along dimension {} not yet implemented.'.format(dim))
+                dim = parent.content['arguments']['dimension']
+                if dim in ['t','temporal']:
+                    self.partialResults[node.id] = self.partialResults[source].max('time')
+                elif dim in ['bands']:
+                    self.partialResults[node.id] = self.partialResults[source].max('variable')
+                elif dim in ['x']:
+                    self.partialResults[node.id] = self.partialResults[source].max('x')
+                elif dim in ['y']:
+                    self.partialResults[node.id] = self.partialResults[source].max('y')
+                else:
+                    print('[!] Max along dimension {} not yet implemented.'.format(dim))
 
         if processName == 'min':
-            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the min
-            dim = parent.content['arguments']['dimension']
+            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             source = node.content['arguments']['data']['from_node']
-            if dim in ['t','temporal']:
-                self.partialResults[node.id] = self.partialResults[source].min('time')
-            elif dim in ['bands']:
-                self.partialResults[node.id] = self.partialResults[source].min('variable')
-            elif dim in ['x']:
-                self.partialResults[node.id] = self.partialResults[source].min('x')
-            elif dim in ['y']:
-                self.partialResults[node.id] = self.partialResults[source].min('y')
+            if parent.content['process_id'] == 'aggregate_spatial_window':
+                xDim, yDim = parent.content['arguments']['size']
+                self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').min().coarsen(y=yDim,boundary = 'pad').min()
             else:
-                print('[!] Min along dimension {} not yet implemented.'.format(dim))
+                dim = parent.content['arguments']['dimension']
+                if dim in ['t','temporal']:
+                    self.partialResults[node.id] = self.partialResults[source].min('time')
+                elif dim in ['bands']:
+                    self.partialResults[node.id] = self.partialResults[source].min('variable')
+                elif dim in ['x']:
+                    self.partialResults[node.id] = self.partialResults[source].min('x')
+                elif dim in ['y']:
+                    self.partialResults[node.id] = self.partialResults[source].min('y')
+                else:
+                    print('[!] Min along dimension {} not yet implemented.'.format(dim))
         
         if processName == 'mean':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             source = node.content['arguments']['data']['from_node']
             if parent.content['process_id'] == 'aggregate_spatial_window':
-                xDim = parent.content['arguments']['xDim']
-                yDim = parent.content['arguments']['yDim'] 
+                xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').mean().coarsen(y=yDim,boundary = 'pad').mean()
             else:
                 dim = parent.content['arguments']['dimension']
@@ -301,19 +326,23 @@ class OpenEO():
                     print('[!] Mean along dimension {} not yet implemented.'.format(dim))
                 
         if processName == 'median':
-            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the median
-            dim = parent.content['arguments']['dimension']
+            parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             source = node.content['arguments']['data']['from_node']
-            if dim in ['t','temporal']:
-                self.partialResults[node.id] = self.partialResults[source].median('time')
-            elif dim in ['bands']:
-                self.partialResults[node.id] = self.partialResults[source].median('variable')
-            elif dim in ['x']:
-                self.partialResults[node.id] = self.partialResults[source].median('x')
-            elif dim in ['y']:
-                self.partialResults[node.id] = self.partialResults[source].median('y')
+            if parent.content['process_id'] == 'aggregate_spatial_window':
+                xDim, yDim = parent.content['arguments']['size']
+                self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').median().coarsen(y=yDim,boundary = 'pad').median()
             else:
-                print('[!] Median along dimension {} not yet implemented.'.format(dim))
+                dim = parent.content['arguments']['dimension']
+                if dim in ['t','temporal']:
+                    self.partialResults[node.id] = self.partialResults[source].median('time')
+                elif dim in ['bands']:
+                    self.partialResults[node.id] = self.partialResults[source].median('variable')
+                elif dim in ['x']:
+                    self.partialResults[node.id] = self.partialResults[source].median('x')
+                elif dim in ['y']:
+                    self.partialResults[node.id] = self.partialResults[source].median('y')
+                else:
+                    print('[!] Median along dimension {} not yet implemented.'.format(dim))
                         
         if processName == 'power':
             dim = node.content['arguments']['base']
@@ -363,10 +392,11 @@ class OpenEO():
                 tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
             for i in range(len(node.content['arguments']['target'])):
                 label_target = node.content['arguments']['target'][i]
-                if node.content['arguments']['source']:
+                try:
+                    node.content['arguments']['source'][0]
                     label_source = node.content['arguments']['source'][i]
                     tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
-                else:
+                except:
                     try:
                         self.partialResults[source].coords['variable']
                         tmp = tmp.assign({label_target:self.partialResults[source][i]})
@@ -469,7 +499,7 @@ class OpenEO():
                         height = int(bgr.shape[0] * scaleFactor)
                         dsize = (width, height)
                         bgr = cv2.resize(bgr, dsize)
-                cv2.imwrite('ouput.png',bgr)
+                cv2.imwrite('output.png',bgr)
                 return 0
 
             if outFormat=='GTiff' or outFormat=='GTIFF':
