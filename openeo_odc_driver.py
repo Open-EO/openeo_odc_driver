@@ -158,9 +158,9 @@ class OpenEO():
                 return tmp
             
             self.partialResults[node.id] = resample_temporal(self.partialResults[source],self.partialResults[target])
-            print(self.partialResults[node.id])        
-                
-        if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte']:
+            
+            
+        if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte','eq','neq']:
             if isinstance(node.content['arguments']['x'],float) or isinstance(node.content['arguments']['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
                 x = node.content['arguments']['x']
             else:
@@ -242,15 +242,12 @@ class OpenEO():
 
         if processName == 'array_element':
             source = node.content['arguments']['data']['from_node']
-#             print(self.partialResults[source].values)
             if 'label' in node.content['arguments']:
                 bandLabel = node.content['arguments']['label']
                 self.partialResults[node.id] = self.partialResults[source].loc[dict(variable=bandLabel)]
             elif 'index' in node.content['arguments']:
                 index = node.content['arguments']['index']
-                self.partialResults[node.id] = self.partialResults[source][index]
-#                 print(self.partialResults[node.id].values)
-            
+                self.partialResults[node.id] = self.partialResults[source][index]            
             
         if processName == 'normalized_difference':
             def normalized_difference(x,y):
@@ -415,7 +412,6 @@ class OpenEO():
             acceptVal = None
             rejectVal = None
             valueVal  = None
-
             if isinstance(node.content['arguments']['reject'],float) or isinstance(node.content['arguments']['reject'],int):
                 rejectVal = node.content['arguments']['reject']
             else:   
@@ -442,14 +438,56 @@ class OpenEO():
         if processName == 'mask':
             maskSource = node.content['arguments']['mask']['from_node']
             dataSource = node.content['arguments']['data']['from_node']
-            self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(self.partialResults[maskSource]))
+            # If the mask has a variable dimension, it will keep only the values of the input with the same variable name.
+            # Solution is to take the min over the variable dim to drop that dimension. (Problems if there are more than 1 band/variable)
+            if 'variable' in self.partialResults[maskSource].dims:
+                mask = self.partialResults[maskSource].min(dim='variable')
+            else:
+                mask = self.partialResults[maskSource]
+            self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(mask))
             if 'replacement' in node.content['arguments']:
                 burnValue  = node.content['arguments']['replacement']
                 self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
+        
+        if processName == 'climatological_normal':
+        #{'process_id': 'climatological_normal', 'arguments': {'data': {'from_node': 'masked_21'}, 'frequency': 'monthly', 'climatology_period': ['2015-08-01T00:00:00Z', '2018-08-31T23:59:59Z']}}
+            source             = node.content['arguments']['data']['from_node']
+            frequency          = node.content['arguments']['frequency']
+            if 'climatology_period' in node.content['arguments']:
+                climatology_period = node.content['arguments']['climatology_period']
+                # Perform a filter_temporal and then compute the mean over a monthly period
+                timeStart = climatology_period[0]
+                timeEnd   = climatology_period[1]
+                if len(timeStart.split('T')) > 1:         # xarray slicing operation doesn't work with dates in the format 2017-05-01T00:00:00Z but only 2017-05-01
+                    timeStart = timeStart.split('T')[0]
+                if len(timeEnd.split('T')) > 1:
+                    timeEnd = timeEnd.split('T')[0]
+                tmp = self.partialResults[source].loc[dict(time=slice(timeStart,timeEnd))]
+            else:
+                tmp = self.partialResults[source]
+            if frequency=='monthly':
+                freq = 'time.month'
+            else:
+                freq = None
+            self.partialResults[node.id] = tmp.groupby(freq).mean("time")
+            print(self.partialResults[node.id])
+            
+        if processName == 'anomaly':
+#{'process_id': 'anomaly', 'arguments': {'data': {'from_node': 'masked_21'}, 'frequency': 'monthly', 'normals': {'from_node': '11_11'}}}
+            source             = node.content['arguments']['data']['from_node']
+            normals             = node.content['arguments']['normals']['from_node']
+            frequency          = node.content['arguments']['frequency']
+            if frequency=='monthly':
+                freq = 'time.month'
+            else:
+                freq = None
+            self.partialResults[node.id] = (self.partialResults[source].groupby(freq) - self.partialResults[normals]).drop('month')
+            
             
         if processName == 'save_result':
             outFormat = node.content['arguments']['format']
             source = node.content['arguments']['data']['from_node']
+            print(self.partialResults[source])
             if outFormat=='PNG':
                 import cv2
                 self.partialResults[source] = self.partialResults[source].fillna(0)
@@ -505,7 +543,14 @@ class OpenEO():
             if outFormat=='GTiff' or outFormat=='GTIFF':
                 import rioxarray
                 if len(self.partialResults[source].dims) > 3:
-                    self.partialResults[source] = self.partialResults[source].squeeze('time')
+                    if len(self.partialResults[source].time)>=1 and len(self.partialResults[source].variable)==1:
+                        # We keep the time dimension as band in the GeoTiff, timeseries of a single band/variable
+                        self.partialResults[source] = self.partialResults[source].squeeze('variable')
+                    elif (len(self.partialResults[source].time==1) and len(self.partialResults[source].variable>=1)):
+                        # We keep the time variable as band in the GeoTiff, multiple band/variables of the same timestamp
+                        self.partialResults[source] = self.partialResults[source].squeeze('time')
+                    else:
+                        raise "Not possible to write a 4-dimensional GeoTiff, use NetCDF instead."
                 self.partialResults[source] = self.partialResults[source].to_dataset(name='result').assign_attrs(crs=self.crs)
                 self.partialResults[source].result.rio.to_raster("output.tif")
                 return 0
