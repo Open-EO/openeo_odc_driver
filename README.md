@@ -57,6 +57,8 @@ python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 - merge_cubes
 - apply
 - mask
+- climatological_normal (only monthly frquency at the moment)
+- anomaly (only monthly frquency at the moment)
 
 # Experimental processes
 - resample_cube_temporal
