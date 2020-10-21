@@ -1,6 +1,12 @@
 # OpenEO_ODC_Driver
 OpenEO backend written in Python based on OpenDataCube, Xarray and Dask
 
+<p float="left">
+  <img src="/img/openeo_logo.png" width="200" />
+  <img src="/img/sar2cube.png" width="300" /> 
+</p>
+
+# Installation
 ## Step 1: Clone the repository
 ```
 git clone https://github.com/SARScripts/openeo_odc_driver.git
@@ -21,7 +27,7 @@ gdal, xarray, rioxarray, dask, numpy, scipy, opencv and their dependencies.
 python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 ```
 
-## Implemented OpenEO processes
+# Implemented OpenEO processes
 ## aggregate & resample
 - resample_cube_temporal
 - resample_spatial
