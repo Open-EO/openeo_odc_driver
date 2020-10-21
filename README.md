@@ -22,14 +22,15 @@ python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 ```
 
 ## Implemented OpenEO processes
-
-- load_collection
-- save_result (PNG,GTIFF,NETCDF)
+## aggregate & resample
+- resample_cube_temporal
 - resample_spatial
-- multiply
-- divide
-- subtract
-- add
+## arrays
+- array_element
+## climatology
+- climatological_normal (only monthly frquency at the moment)
+- anomaly (only monthly frquency at the moment)
+## comparison
 - if
 - lt
 - lte
@@ -37,14 +38,29 @@ python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 - gte
 - eq
 - neq
+## cubes
+- load_collection
+- save_result (PNG,GTIFF,NETCDF)
+- reduce_dimension (dimensions: t (or temporal), bands)
+- filter_bands
+- filter_temporal
+- rename_labels
+- merge_cubes
+- apply
+## logic
 - and
 - or
+## masks
+- mask
+## math
+- multiply
+- divide
+- subtract
+- add
 - sum
 - product
 - sqrt
-- array_element
 - normalized_difference
-- reduce_dimension (dimensions: t (or temporal), bands)
 - min
 - max
 - mean
@@ -52,18 +68,11 @@ python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 - power
 - absolute
 - linear_scale_range
-- filter_bands
-- filter_temporal
-- rename_labels
-- merge_cubes
-- apply
-- mask
-- climatological_normal (only monthly frquency at the moment)
-- anomaly (only monthly frquency at the moment)
-
-## Experimental processes
-- resample_cube_temporal
+## experimental processes
 - aggregate_spatial_window
+
+
+
 
 
 
