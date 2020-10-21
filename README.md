@@ -1,5 +1,5 @@
 # OpenEO_ODC_Driver
-OpenEO backend written in Python based on OpenDataCube, xarray and dask
+OpenEO backend written in Python based on OpenDataCube, Xarray and Dask
 
 ## Step 1: Clone the repository
 ```
