@@ -61,7 +61,7 @@ python main.py ./process_graphs/EVI_L1C_D22.json --local 1
 - climatological_normal (only monthly frquency at the moment)
 - anomaly (only monthly frquency at the moment)
 
-# Experimental processes
+## Experimental processes
 - resample_cube_temporal
 - aggregate_spatial_window
 
