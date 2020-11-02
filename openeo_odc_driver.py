@@ -32,6 +32,7 @@ class OpenEO():
         self.crs = None
         self.bands = None
         self.graph = translate_process_graph(jsonProcessGraph).sort(by='dependency')
+        self.outFormat = None
         self.i = 0
         for i in range(0,len(self.graph)+1):
             if not self.process_node(i):
@@ -273,35 +274,39 @@ class OpenEO():
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').max().coarsen(y=yDim,boundary = 'pad').max()
             else:
                 dim = parent.content['arguments']['dimension']
-                if dim in ['t','temporal']:
+                if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].max('time')
-                elif dim in ['bands']:
+                elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].max('variable')
-                elif dim in ['x']:
+                elif dim in ['x'] and 'x' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].max('x')
-                elif dim in ['y']:
+                elif dim in ['y'] and 'y' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].max('y')
                 else:
-                    print('[!] Max along dimension {} not yet implemented.'.format(dim))
-
+                    self.partialResults[node.id] = self.partialResults[source]
+                    print('[!] Dimension {} not available in the current data.'.format(dim))
+                    
         if processName == 'min':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             source = node.content['arguments']['data']['from_node']
+            print(node.content['arguments'])
+            print(self.partialResults[source])
             if parent.content['process_id'] == 'aggregate_spatial_window':
                 xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').min().coarsen(y=yDim,boundary = 'pad').min()
             else:
                 dim = parent.content['arguments']['dimension']
-                if dim in ['t','temporal']:
+                if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].min('time')
-                elif dim in ['bands']:
+                elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].min('variable')
-                elif dim in ['x']:
+                elif dim in ['x'] and 'x' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].min('x')
-                elif dim in ['y']:
+                elif dim in ['y'] and 'y' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].min('y')
                 else:
-                    print('[!] Min along dimension {} not yet implemented.'.format(dim))
+                    self.partialResults[node.id] = self.partialResults[source]
+                    print('[!] Dimension {} not available in the current data.'.format(dim))
         
         if processName == 'mean':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
@@ -311,17 +316,18 @@ class OpenEO():
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').mean().coarsen(y=yDim,boundary = 'pad').mean()
             else:
                 dim = parent.content['arguments']['dimension']
-                if dim in ['t','temporal']:
+                if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].mean('time')
-                elif dim in ['bands']:
+                elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].mean('variable')
-                elif dim in ['x']:
+                elif dim in ['x'] and 'x' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].mean('x')
-                elif dim in ['y']:
+                elif dim in ['y'] and 'y' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].mean('y')
                 else:
-                    print('[!] Mean along dimension {} not yet implemented.'.format(dim))
-                
+                    self.partialResults[node.id] = self.partialResults[source]
+                    print('[!] Dimension {} not available in the current data.'.format(dim))
+                    
         if processName == 'median':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             source = node.content['arguments']['data']['from_node']
@@ -330,17 +336,18 @@ class OpenEO():
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').median().coarsen(y=yDim,boundary = 'pad').median()
             else:
                 dim = parent.content['arguments']['dimension']
-                if dim in ['t','temporal']:
+                if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].median('time')
-                elif dim in ['bands']:
+                elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].median('variable')
-                elif dim in ['x']:
+                elif dim in ['x'] and 'x' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].median('x')
-                elif dim in ['y']:
+                elif dim in ['y'] and 'y' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].median('y')
                 else:
-                    print('[!] Median along dimension {} not yet implemented.'.format(dim))
-                        
+                    self.partialResults[node.id] = self.partialResults[source]
+                    print('[!] Dimension {} not available in the current data.'.format(dim))
+                    
         if processName == 'power':
             dim = node.content['arguments']['base']
             if isinstance(node.content['arguments']['base'],float) or isinstance(node.content['arguments']['base'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
@@ -489,6 +496,7 @@ class OpenEO():
             source = node.content['arguments']['data']['from_node']
             print(self.partialResults[source])
             if outFormat=='PNG':
+                self.outFormat = '.png'
                 import cv2
                 self.partialResults[source] = self.partialResults[source].fillna(0)
                 size = None; red = None; green = None; blue = None; gray = None
@@ -541,6 +549,7 @@ class OpenEO():
                 return 0
 
             if outFormat=='GTiff' or outFormat=='GTIFF':
+                self.outFormat = '.tif'
                 import rioxarray
                 if len(self.partialResults[source].dims) > 3:
                     if len(self.partialResults[source].time)>=1 and len(self.partialResults[source].variable)==1:
@@ -550,14 +559,19 @@ class OpenEO():
                         # We keep the time variable as band in the GeoTiff, multiple band/variables of the same timestamp
                         self.partialResults[source] = self.partialResults[source].squeeze('time')
                     else:
-                        raise "Not possible to write a 4-dimensional GeoTiff, use NetCDF instead."
+                        raise "[!] Not possible to write a 4-dimensional GeoTiff, use NetCDF instead."
                 self.partialResults[source] = self.partialResults[source].to_dataset(name='result').assign_attrs(crs=self.crs)
                 self.partialResults[source].result.rio.to_raster("output.tif")
                 return 0
             
             if outFormat=='NETCDF':
+                self.outFormat = '.nc'
                 self.partialResults[source].to_netcdf('output.nc')
                 return 0
+            
+            else:
+                raise "[!] Output format not recognized/implemented!"
+
             
            
             # self.data.set_crs(self.crs)
