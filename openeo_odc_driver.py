@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   03/07/2020
+# Date:   23/11/2020
 
 import math
 import json
@@ -31,7 +31,7 @@ class OpenEO():
         self.partialResults = {}
         self.crs = None
         self.bands = None
-        self.graph = translate_process_graph(jsonProcessGraph).sort(by='dependency')
+        self.graph = translate_process_graph(jsonProcessGraph).sort(by='result')
         self.outFormat = None
         self.i = 0
         for i in range(0,len(self.graph)+1):
@@ -41,9 +41,8 @@ class OpenEO():
 
     def process_node(self,i):
         node = self.graph[i]
-        processName = node.content['process_id']
+        processName = node.process_id
         print("Process id: {} Process name: {}".format(node.id,processName))
-        processName = node.content['process_id']
         
         if processName == 'load_collection':
             defaultTimeStart = '1970-01-01'
@@ -55,37 +54,37 @@ class OpenEO():
             highLat          = None
             lowLon           = None
             highLon          = None
-            self.bands       = None # List of bands, we may need it in the array_element process
+            bands            = None # List of bands
             resolutions      = None # Tuple
             outputCrs        = None
             resamplingMethod = None
             polygon          = None
-            if 'bands' in node.content['arguments']:
-                self.bands = node.content['arguments']['bands']
-                if self.bands == []: self.bands = None
+            if 'bands' in node.arguments:
+                bands = node.arguments['bands']
+                if bands == []: bands = None
                     
-            collection = node.content['arguments']['id']
+            collection = node.arguments['id'] # The datacube we have to load
             if collection is None:
                 raise Exception('[!] You must provide a collection which provides the data!')
             
-            if node.content['arguments']['temporal_extent'] is not None:
-                timeStart  = node.content['arguments']['temporal_extent'][0]
-                timeEnd    = node.content['arguments']['temporal_extent'][1]
+            if node.arguments['temporal_extent'] is not None:
+                timeStart  = node.arguments['temporal_extent'][0]
+                timeEnd    = node.arguments['temporal_extent'][1]
                 
             # If there is a bounding-box or a polygon we set the variables, otherwise we pass the defaults
-            if 'spatial_extent' in node.content['arguments']:
-                if 'south' in node.content['arguments']['spatial_extent'] and \
-                   'north' in node.content['arguments']['spatial_extent'] and \
-                   'east'  in node.content['arguments']['spatial_extent'] and \
-                   'west'  in node.content['arguments']['spatial_extent']:
-                    lowLat     = node.content['arguments']['spatial_extent']['south']
-                    highLat    = node.content['arguments']['spatial_extent']['north']
-                    lowLon     = node.content['arguments']['spatial_extent']['east']
-                    highLon    = node.content['arguments']['spatial_extent']['west']
+            if 'spatial_extent' in node.arguments:
+                if 'south' in node.arguments['spatial_extent'] and \
+                   'north' in node.arguments['spatial_extent'] and \
+                   'east'  in node.arguments['spatial_extent'] and \
+                   'west'  in node.arguments['spatial_extent']:
+                    lowLat     = node.arguments['spatial_extent']['south']
+                    highLat    = node.arguments['spatial_extent']['north']
+                    lowLon     = node.arguments['spatial_extent']['east']
+                    highLon    = node.arguments['spatial_extent']['west']
                 
-                elif 'coordinates' in node.content['arguments']['spatial_extent']:
+                elif 'coordinates' in node.arguments['spatial_extent']:
                     # Pass coordinates to odc and process them there
-                    polygon = node.content['arguments']['spatial_extent']['coordinates']
+                    polygon = node.arguments['spatial_extent']['coordinates']
                     
             for n in self.graph: # Let's look for resample_spatial nodes
                 parentID = 0
@@ -94,8 +93,8 @@ class OpenEO():
                         parentID = n_0.id
                         continue
                     if parentID == node.id: # The found resample_spatial comes right after the current load_collection, let's apply the resampling to the query
-                        if 'resolution' in n.content['arguments']:
-                            res = n.content['arguments']['resolution']
+                        if 'resolution' in n.arguments:
+                            res = n.arguments['resolution']
                             if isinstance(res,float) or isinstance(res,int):
                                 resolutions = (res,res)
                             elif len(res) == 2:
@@ -103,20 +102,19 @@ class OpenEO():
                             else:
                                 print('error')
                         
-                        if 'projection' in n.content['arguments']:
-                            projection = n.content['arguments']['projection']
+                        if 'projection' in n.arguments:
+                            projection = n.arguments['projection']
                             if isinstance(projection,int):           # Check if it's an EPSG code and append 'epsg:' to it, without ODC returns an error
                                 projection = 'epsg:' + str(projection)
                             else:
                                 print('This type of reprojection is not yet implemented')
                             outputCrs = projection
 
-                        if 'method' in n.content['arguments']:
-                            resamplingMethod = n.content['arguments']['method']
+                        if 'method' in n.arguments:
+                            resamplingMethod = n.arguments['method']
             
             if self.LOCAL_TEST==0:
-                print(resolutions)
-                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=self.bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod)
+                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod)
                 self.partialResults[node.id] = odc.data.to_array()
                 self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
             else:
@@ -137,13 +135,12 @@ class OpenEO():
             print(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
               
         if processName == 'resample_spatial':
-            source = node.content['arguments']['data']['from_node']
+            source = node.arguments['data']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
             
         if processName == 'resample_cube_temporal':
-            print(node.content['arguments'])
-            target = node.content['arguments']['target']['from_node']
-            source = node.content['arguments']['data']['from_node']
+            target = node.arguments['target']['from_node']
+            source = node.arguments['data']['from_node']
             def nearest(items, pivot):
                 return min(items, key=lambda x: abs(x - pivot))
             def resample_temporal(sourceCube,targetCube):
@@ -162,14 +159,22 @@ class OpenEO():
             
             
         if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte','eq','neq']:
-            if isinstance(node.content['arguments']['x'],float) or isinstance(node.content['arguments']['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
-                x = node.content['arguments']['x']
+            if isinstance(node.arguments['x'],float) or isinstance(node.arguments['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
+                x = node.arguments['x']
             else:
-                x = self.partialResults[node.content['arguments']['x']['from_node']]
-            if isinstance(node.content['arguments']['y'],float) or isinstance(node.content['arguments']['y'],int):
-                y = node.content['arguments']['y']
+                if 'from_node' in node.arguments['x']:
+                    source = node.arguments['x']['from_node']
+                elif 'from_parameter' in node.arguments['x']:
+                    source = node.parent_process.arguments['data']['from_node']
+                x = self.partialResults[source]
+            if isinstance(node.arguments['y'],float) or isinstance(node.arguments['y'],int):
+                y = node.arguments['y']
             else:
-                y = self.partialResults[node.content['arguments']['y']['from_node']]
+                if 'from_node' in node.arguments['y']:
+                    source = node.arguments['y']['from_node']
+                elif 'from_parameter' in node.arguments['y']:
+                    source = node.parent_process.arguments['data']['from_node']
+                y = self.partialResults[source]
             if processName == 'multiply':
                 self.partialResults[node.id] = x * y
             elif processName == 'divide':
@@ -189,91 +194,128 @@ class OpenEO():
             elif processName == 'eq':
                 self.partialResults[node.id] = x == y
             elif processName == 'neq':
-                self.partialResults[node.id] = x != y
-        
+                self.partialResults[node.id] = x != y       
+                
+        if processName == 'not':
+            if isinstance(node.arguments['x'],float) or isinstance(node.arguments['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
+                x = node.arguments['x']
+            else:
+                if 'from_node' in node.arguments['x']:
+                    source = node.arguments['x']['from_node']
+                elif 'from_parameter' in node.arguments['x']:
+                    source = node.parent_process.arguments['data']['from_node']
+                x = self.partialResults[source]
+            self.partialResults[node.id] = np.logical_not(x)
         
         if processName == 'sum':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             if parent.content['process_id'] == 'aggregate_spatial_window':
-                source = node.content['arguments']['data']['from_node']
+                source = node.arguments['data']['from_node']
                 xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').sum().coarsen(y=yDim,boundary = 'pad').sum()
             else:
                 x = 0
-                for i,d in enumerate(node.content['arguments']['data']):
+                for i,d in enumerate(node.arguments['data']):
                     if isinstance(d,float) or isinstance(d,int):         # We have to distinguish when the input data is a number or a datacube from a previous process
                         x = d
                     else:
-                        x = self.partialResults[d['from_node']].astype(float)
+                        if 'from_node' in d:
+                            source = d['from_node']
+                        elif 'from_parameter' in d:
+                            source = node.parent_process.arguments['data']['from_node']
+                        x = self.partialResults[source]
                     if i==0: self.partialResults[node.id] = x
                     else: self.partialResults[node.id] += x
                 
         if processName == 'product':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
             if parent.content['process_id'] == 'aggregate_spatial_window':
-                source = node.content['arguments']['data']['from_node']
+                source = node.arguments['data']['from_node']
                 xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').prod().coarsen(y=yDim,boundary = 'pad').prod()
             else:
                 x = 0
-                for i,d in enumerate(node.content['arguments']['data']):
+                for i,d in enumerate(node.arguments['data']):
                     if isinstance(d,float) or isinstance(d,int):        # We have to distinguish when the input data is a number or a datacube from a previous process
                         x = d
                     else:
-                        x = self.partialResults[d['from_node']]
+                        if 'from_node' in d:
+                            source = d['from_node']
+                        elif 'from_parameter' in d:
+                            source = node.parent_process.arguments['data']['from_node']
+                        x = self.partialResults[source]
                     if i==0: self.partialResults[node.id] = x
                     else: self.partialResults[node.id] *= x
                         
         if processName == 'sqrt':
-            x = node.content['arguments']['x']
+            x = node.arguments['x']
             if isinstance(x,float) or isinstance(x,int):        # We have to distinguish when the input data is a number or a datacube from a previous process
                 self.partialResults[node.id] = np.sqrt(x)
             else:
-                self.partialResults[node.id] = np.sqrt(self.partialResults[x['from_node']])
+                if 'from_node' in node.arguments['x']:
+                    source = node.arguments['x']['from_node']
+                elif 'from_parameter' in node.arguments['x']:
+                    source = node.parent_process.arguments['data']['from_node']
+                self.partialResults[node.id] = np.sqrt(self.partialResults[source])
                         
-        if processName in ['and', 'or']:
-            if processName == 'and':
-                x = node.content['arguments']['x']['from_node']
-                y = node.content['arguments']['y']['from_node']
-                self.partialResults[node.id] = np.bitwise_and(self.partialResults[x],self.partialResults[y])
-            if processName == 'or':
-                x = node.content['arguments']['x']['from_node']
-                y = node.content['arguments']['y']['from_node']
-                self.partialResults[node.id] = np.bitwise_or(self.partialResults[x],self.partialResults[y])
+        if processName == 'and':
+            x = node.arguments['x']['from_node']
+            y = node.arguments['y']['from_node']
+            self.partialResults[node.id] = np.bitwise_and(self.partialResults[x],self.partialResults[y])
+        
+        if processName == 'or':
+            x = node.arguments['x']['from_node']
+            y = node.arguments['y']['from_node']
+            self.partialResults[node.id] = np.bitwise_or(self.partialResults[x],self.partialResults[y])
 
         if processName == 'array_element':
-            source = node.content['arguments']['data']['from_node']
-            if 'label' in node.content['arguments']:
-                bandLabel = node.content['arguments']['label']
-                self.partialResults[node.id] = self.partialResults[source].loc[dict(variable=bandLabel)]
-            elif 'index' in node.content['arguments']:
-                index = node.content['arguments']['index']
+            print(node.arguments)
+            if 'from_node' in node.arguments['data']:
+                source = node.arguments['data']['from_node']
+            elif 'from_parameter' in node.arguments['data']:
+                source = node.parent_process.arguments['data']['from_node']
+            else:
+                print('ERROR')
+            print(source)
+            noLabel = 1
+            if 'label' in node.arguments:
+                if node.arguments['label'] is not None:
+                    bandLabel = node.arguments['label']
+                    noLabel = 0
+                    self.partialResults[node.id] = self.partialResults[source].loc[dict(variable=bandLabel)]
+            if 'index' in node.arguments and noLabel:
+                index = node.arguments['index']
                 self.partialResults[node.id] = self.partialResults[source][index]            
+
             
         if processName == 'normalized_difference':
             def normalized_difference(x,y):
                 return (x-y)/(x+y)
-            xSource = (node.content['arguments']['x']['from_node'])
-            ySource = (node.content['arguments']['y']['from_node'])
+            xSource = (node.arguments['x']['from_node'])
+            ySource = (node.arguments['y']['from_node'])
             self.partialResults[node.id] = normalized_difference(self.partialResults[xSource],self.partialResults[ySource])
-
             
         if processName == 'reduce_dimension':
-            source = node.content['arguments']['reducer']['from_node']
+            source = node.arguments['reducer']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
         
         if processName == 'aggregate_spatial_window':
-            source = node.content['arguments']['reducer']['from_node']
+            source = node.arguments['reducer']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
             
         if processName == 'max':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
-            source = node.content['arguments']['data']['from_node']
+            if 'from_node' in node.arguments['data']:
+                source = node.arguments['data']['from_node']
+            elif 'from_parameter' in node.arguments['data']:
+                source = node.parent_process.arguments['data']['from_node']
+            else:
+                print('ERROR')
             if parent.content['process_id'] == 'aggregate_spatial_window':
                 xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').max().coarsen(y=yDim,boundary = 'pad').max()
             else:
-                dim = parent.content['arguments']['dimension']
+                dim = parent.dimension
                 if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].max('time')
                 elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
@@ -288,14 +330,17 @@ class OpenEO():
                     
         if processName == 'min':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
-            source = node.content['arguments']['data']['from_node']
-            print(node.content['arguments'])
-            print(self.partialResults[source])
+            if 'from_node' in node.arguments['data']:
+                source = node.arguments['data']['from_node']
+            elif 'from_parameter' in node.arguments['data']:
+                source = node.parent_process.arguments['data']['from_node']
+            else:
+                print('ERROR')
             if parent.content['process_id'] == 'aggregate_spatial_window':
                 xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').min().coarsen(y=yDim,boundary = 'pad').min()
             else:
-                dim = parent.content['arguments']['dimension']
+                dim = parent.dimension
                 if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].min('time')
                 elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
@@ -310,12 +355,17 @@ class OpenEO():
         
         if processName == 'mean':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
-            source = node.content['arguments']['data']['from_node']
+            if 'from_node' in node.arguments['data']:
+                source = node.arguments['data']['from_node']
+            elif 'from_parameter' in node.arguments['data']:
+                source = node.parent_process.arguments['data']['from_node']
+            else:
+                print('ERROR')
             if parent.content['process_id'] == 'aggregate_spatial_window':
                 xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').mean().coarsen(y=yDim,boundary = 'pad').mean()
             else:
-                dim = parent.content['arguments']['dimension']
+                dim = parent.dimension
                 if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].mean('time')
                 elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
@@ -330,12 +380,17 @@ class OpenEO():
                     
         if processName == 'median':
             parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
-            source = node.content['arguments']['data']['from_node']
+            if 'from_node' in node.arguments['data']:
+                source = node.arguments['data']['from_node']
+            elif 'from_parameter' in node.arguments['data']:
+                source = node.parent_process.arguments['data']['from_node']
+            else:
+                print('ERROR')
             if parent.content['process_id'] == 'aggregate_spatial_window':
                 xDim, yDim = parent.content['arguments']['size']
                 self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').median().coarsen(y=yDim,boundary = 'pad').median()
             else:
-                dim = parent.content['arguments']['dimension']
+                dim = parent.dimension
                 if dim in ['t','temporal'] and 'time' in self.partialResults[source].dims:
                     self.partialResults[node.id] = self.partialResults[source].median('time')
                 elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
@@ -349,56 +404,61 @@ class OpenEO():
                     print('[!] Dimension {} not available in the current data.'.format(dim))
                     
         if processName == 'power':
-            dim = node.content['arguments']['base']
-            if isinstance(node.content['arguments']['base'],float) or isinstance(node.content['arguments']['base'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
-                x = node.content['arguments']['base']
+            dim = node.arguments['base']
+            if isinstance(node.arguments['base'],float) or isinstance(node.arguments['base'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
+                x = node.arguments['base']
             else:
-                x = self.partialResults[node.content['arguments']['base']['from_node']]
-            self.partialResults[node.id] = x**node.content['arguments']['p']
+                x = self.partialResults[node.arguments['base']['from_node']]
+            self.partialResults[node.id] = x**node.arguments['p']
         
         if processName == 'absolute':
-            source = node.content['arguments']['x']['from_node']
+            source = node.arguments['x']['from_node']
             self.partialResults[node.id] = abs(self.partialResults[source])
 
         if processName == 'linear_scale_range':
-            source = node.content['arguments']['x']['from_node']
-            inputMin = node.content['arguments']['inputMin']
-            inputMax = node.content['arguments']['inputMax']
-            outputMax = node.content['arguments']['outputMax']
+            print(node.arguments)
+            print(node.parent_process)
+            parent = node.parent_process # I need to read the parent apply process
+            if 'from_node' in parent.arguments['data']:
+                source = node.parent_process.arguments['data']['from_node']
+            else:
+                print('ERROR')
+            inputMin = node.arguments['inputMin']
+            inputMax = node.arguments['inputMax']
+            outputMax = node.arguments['outputMax']
             outputMin = 0
-            if 'outputMin' in node.content['arguments']:
-                outputMin = node.content['arguments']['outputMin']
+            if 'outputMin' in node.arguments:
+                outputMin = node.arguments['outputMin']
             tmp = self.partialResults[source].clip(inputMin,inputMax)
-            self.partialResults[node.id] = (((self.partialResults[source] - inputMin) / (inputMax - inputMin)) *
-                                                (outputMax - outputMin) + outputMin).clip(outputMin,outputMax)
+            self.partialResults[node.id] = ((tmp - inputMin) / (inputMax - inputMin)) * (outputMax - outputMin) + outputMin
             
         if processName == 'filter_temporal':
-            timeStart = node.content['arguments']['extent'][0]
-            timeEnd = node.content['arguments']['extent'][1]
+            timeStart = node.arguments['extent'][0]
+            timeEnd = node.arguments['extent'][1]
             if len(timeStart.split('T')) > 1:                # xarray slicing operation doesn't work with dates in the format 2017-05-01T00:00:00Z but only 2017-05-01
                 timeStart = timeStart.split('T')[0]
             if len(timeEnd.split('T')) > 1:
                 timeEnd = timeEnd.split('T')[0]
-            source = node.content['arguments']['data']['from_node']
+            source = node.arguments['data']['from_node']
             self.partialResults[node.id] = self.partialResults[source].loc[dict(time=slice(timeStart,timeEnd))]
                         
         if processName == 'filter_bands':
-            bandsToKeep = node.content['arguments']['bands']
-            source = node.content['arguments']['data']['from_node']
+            bandsToKeep = node.arguments['bands']
+            source = node.arguments['data']['from_node']
             self.partialResults[node.id]  = self.partialResults[source].loc[dict(variable=bandsToKeep)]
 
         if processName == 'rename_labels':
-            source = node.content['arguments']['data']['from_node']
+            source = node.arguments['data']['from_node']
             try:
                 len(self.partialResults[source].coords['time'])
                 tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
             except:
                 tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
-            for i in range(len(node.content['arguments']['target'])):
-                label_target = node.content['arguments']['target'][i]
+            for i in range(len(node.arguments['target'])):
+                label_target = node.arguments['target'][i]
                 try:
-                    node.content['arguments']['source'][0]
-                    label_source = node.content['arguments']['source'][i]
+                    node.arguments['source'][0]
+                    label_source = node.arguments['source'][i]
                     tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
                 except:
                     try:
@@ -407,44 +467,61 @@ class OpenEO():
                     except:
                         tmp = tmp.assign({label_target:self.partialResults[source]})
             self.partialResults[node.id] = tmp.to_array()
-        
+            
+        if processName == 'add_dimension':
+            print(node.content)
+    
+            source = node.arguments['data']['from_node']
+            print(self.partialResults[source])
+            try:
+                len(self.partialResults[source].coords['time'])
+                tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
+            except:
+                tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
+            label_target = node.arguments['label']
+            tmp = tmp.assign({label_target:self.partialResults[source]})
+            self.partialResults[node.id] = tmp.to_array()
+            print(self.partialResults[node.id])
+
         if processName == 'merge_cubes':
-            cube1 = node.content['arguments']['cube1']['from_node']
-            cube2 = node.content['arguments']['cube2']['from_node']
+            cube1 = node.arguments['cube1']['from_node']
+            cube2 = node.arguments['cube2']['from_node']
             ds1 = self.partialResults[cube1]
             ds2 = self.partialResults[cube2]
             self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
-
+            print(ds1,ds2)
+            print(self.partialResults[node.id])
         if processName == 'if':
             acceptVal = None
             rejectVal = None
             valueVal  = None
-            if isinstance(node.content['arguments']['reject'],float) or isinstance(node.content['arguments']['reject'],int):
-                rejectVal = node.content['arguments']['reject']
+            if isinstance(node.arguments['reject'],float) or isinstance(node.arguments['reject'],int):
+                rejectVal = node.arguments['reject']
             else:   
-                reject = node.content['arguments']['reject']['from_node']
+                reject = node.arguments['reject']['from_node']
                 rejectVal = self.partialResults[reject]
-            if isinstance(node.content['arguments']['accept'],float) or isinstance(node.content['arguments']['accept'],int):
-                acceptVal = node.content['arguments']['accept']
+            if isinstance(node.arguments['accept'],float) or isinstance(node.arguments['accept'],int):
+                acceptVal = node.arguments['accept']
             else:   
-                accept = node.content['arguments']['accept']['from_node']
+                accept = node.arguments['accept']['from_node']
                 acceptVal = self.partialResults[accept]
-            if isinstance(node.content['arguments']['value'],float) or isinstance(node.content['arguments']['value'],int):
-                valueVal = node.content['arguments']['value']
+            if isinstance(node.arguments['value'],float) or isinstance(node.arguments['value'],int):
+                valueVal = node.arguments['value']
             else:   
-                value = node.content['arguments']['value']['from_node']
-                valueVal = self.partialResults[value]
+                value = node.arguments['value']['from_node']
+                valueVal = self.partialResults[value]         
+            
             tmpAccept = valueVal * acceptVal
             tmpReject = xr.ufuncs.logical_not(valueVal) * rejectVal
-            self.partialResults[node.id] = tmpAccept + tmpReject
-
+            self.partialResults[node.id] = tmpAccept + tmpReject     
+        
         if processName == 'apply':
-            source = node.content['arguments']['process']['from_node']
+            source = node.arguments['process']['from_node']
             self.partialResults[node.id] = self.partialResults[source]
                            
         if processName == 'mask':
-            maskSource = node.content['arguments']['mask']['from_node']
-            dataSource = node.content['arguments']['data']['from_node']
+            maskSource = node.arguments['mask']['from_node']
+            dataSource = node.arguments['data']['from_node']
             # If the mask has a variable dimension, it will keep only the values of the input with the same variable name.
             # Solution is to take the min over the variable dim to drop that dimension. (Problems if there are more than 1 band/variable)
             if 'variable' in self.partialResults[maskSource].dims:
@@ -452,16 +529,16 @@ class OpenEO():
             else:
                 mask = self.partialResults[maskSource]
             self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(mask))
-            if 'replacement' in node.content['arguments']:
-                burnValue  = node.content['arguments']['replacement']
+            if 'replacement' in node.arguments:
+                burnValue  = node.arguments['replacement']
                 self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
         
         if processName == 'climatological_normal':
         #{'process_id': 'climatological_normal', 'arguments': {'data': {'from_node': 'masked_21'}, 'frequency': 'monthly', 'climatology_period': ['2015-08-01T00:00:00Z', '2018-08-31T23:59:59Z']}}
-            source             = node.content['arguments']['data']['from_node']
-            frequency          = node.content['arguments']['frequency']
-            if 'climatology_period' in node.content['arguments']:
-                climatology_period = node.content['arguments']['climatology_period']
+            source             = node.arguments['data']['from_node']
+            frequency          = node.arguments['frequency']
+            if 'climatology_period' in node.arguments:
+                climatology_period = node.arguments['climatology_period']
                 # Perform a filter_temporal and then compute the mean over a monthly period
                 timeStart = climatology_period[0]
                 timeEnd   = climatology_period[1]
@@ -481,9 +558,9 @@ class OpenEO():
             
         if processName == 'anomaly':
 #{'process_id': 'anomaly', 'arguments': {'data': {'from_node': 'masked_21'}, 'frequency': 'monthly', 'normals': {'from_node': '11_11'}}}
-            source             = node.content['arguments']['data']['from_node']
-            normals             = node.content['arguments']['normals']['from_node']
-            frequency          = node.content['arguments']['frequency']
+            source             = node.arguments['data']['from_node']
+            normals             = node.arguments['normals']['from_node']
+            frequency          = node.arguments['frequency']
             if frequency=='monthly':
                 freq = 'time.month'
             else:
@@ -492,25 +569,25 @@ class OpenEO():
             
             
         if processName == 'save_result':
-            outFormat = node.content['arguments']['format']
-            source = node.content['arguments']['data']['from_node']
+            outFormat = node.arguments['format']
+            source = node.arguments['data']['from_node']
             print(self.partialResults[source])
             if outFormat=='PNG':
                 self.outFormat = '.png'
                 import cv2
                 self.partialResults[source] = self.partialResults[source].fillna(0)
                 size = None; red = None; green = None; blue = None; gray = None
-                if 'options' in node.content['arguments']:
-                    if 'size' in node.content['arguments']['options']:
-                        size = node.content['arguments']['options']['size']
-                    if 'red' in node.content['arguments']['options']:
-                        red = node.content['arguments']['options']['red']
-                    if 'green' in node.content['arguments']['options']:
-                        green = node.content['arguments']['options']['green']
-                    if 'blue' in node.content['arguments']['options']:
-                        blue = node.content['arguments']['options']['blue']
-                    if 'gray' in node.content['arguments']['options']:
-                        gray = node.content['arguments']['options']['gray']
+                if 'options' in node.arguments:
+                    if 'size' in node.arguments['options']:
+                        size = node.arguments['options']['size']
+                    if 'red' in node.arguments['options']:
+                        red = node.arguments['options']['red']
+                    if 'green' in node.arguments['options']:
+                        green = node.arguments['options']['green']
+                    if 'blue' in node.arguments['options']:
+                        blue = node.arguments['options']['blue']
+                    if 'gray' in node.arguments['options']:
+                        gray = node.arguments['options']['gray']
                     if red is not None and green is not None and blue is not None and gray is not None:
                         redBand   = self.partialResults[source].loc[dict(variable=red)].values
                         blueBand  = self.partialResults[source].loc[dict(variable=blue)].values
