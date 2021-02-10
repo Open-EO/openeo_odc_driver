@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   23/11/2020
+# Date:   10/02/2021
 
 import math
 import json
@@ -12,6 +12,7 @@ import rasterio.features
 import rasterio
 import dask
 import os
+import scipy.ndimage
 from dask.distributed import Client
 from openeo_pg_parser.translate import translate_process_graph
 
@@ -31,7 +32,7 @@ class OpenEO():
         self.partialResults = {}
         self.crs = None
         self.bands = None
-        self.graph = translate_process_graph(jsonProcessGraph).sort(by='result')
+        self.graph = translate_process_graph(jsonProcessGraph).sort(by='dependency')
         self.outFormat = None
         self.i = 0
         for i in range(0,len(self.graph)+1):
@@ -554,20 +555,37 @@ class OpenEO():
             else:
                 freq = None
             self.partialResults[node.id] = tmp.groupby(freq).mean("time")
-            print(self.partialResults[node.id])
             
         if processName == 'anomaly':
-#{'process_id': 'anomaly', 'arguments': {'data': {'from_node': 'masked_21'}, 'frequency': 'monthly', 'normals': {'from_node': '11_11'}}}
-            source             = node.arguments['data']['from_node']
-            normals             = node.arguments['normals']['from_node']
-            frequency          = node.arguments['frequency']
+            source    = node.arguments['data']['from_node']
+            normals   = node.arguments['normals']['from_node']
+            frequency = node.arguments['frequency']
             if frequency=='monthly':
                 freq = 'time.month'
             else:
                 freq = None
             self.partialResults[node.id] = (self.partialResults[source].groupby(freq) - self.partialResults[normals]).drop('month')
+                                
+        if processName == 'apply_kernel':
+            def convolve(data, kernel, mode='constant', fill_value=0):
+                dims = ('x','y')
+            #   scipy.ndimage.convolve(input, weights, output=None, mode='reflect', cval=0.0, origin=0)
+                convolved = lambda data: scipy.ndimage.convolve(data, kernel, mode=mode, cval=0)
+
+                data_masked = data.fillna(fill_value)
+
+                return xr.apply_ufunc(convolved, data_masked,
+                                      vectorize=True,
+                                      dask='parallelized',
+                                      input_core_dims = [dims],
+                                      output_core_dims = [dims],
+                                      output_dtypes=[data.dtype],
+                                      dask_gufunc_kwargs={'allow_rechunk':True})
             
-            
+            kernel = np.array(node.arguments['kernel'])
+            source = node.arguments['data']['from_node']
+            self.partialResults[node.id] = convolve(self.partialResults[source],kernel)
+                
         if processName == 'save_result':
             outFormat = node.arguments['format']
             source = node.arguments['data']['from_node']
@@ -625,7 +643,7 @@ class OpenEO():
                 cv2.imwrite('output.png',bgr)
                 return 0
 
-            if outFormat=='GTiff' or outFormat=='GTIFF':
+            if outFormat=='GTiff' or outFormat=='GTIFF' or outFormat=='GEOTIFF':
                 self.outFormat = '.tif'
                 import rioxarray
                 if len(self.partialResults[source].dims) > 3:
@@ -638,7 +656,7 @@ class OpenEO():
                     else:
                         raise "[!] Not possible to write a 4-dimensional GeoTiff, use NetCDF instead."
                 self.partialResults[source] = self.partialResults[source].to_dataset(name='result').assign_attrs(crs=self.crs)
-                self.partialResults[source].result.rio.to_raster("output.tif")
+                self.partialResults[source].result.transpose('variable', 'y', 'x').rio.to_raster("output.tif")
                 return 0
             
             if outFormat=='NETCDF':
