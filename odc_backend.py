@@ -40,7 +40,7 @@ def error500(error):
 def process_graph():
     jsonGraph = request.json
     try:
-        eo = OpenEO(jsonGraph,0)
+        eo = OpenEO(jsonGraph)
         return send_file(eo.tmpFolderPath + "/output"+eo.outFormat, as_attachment=True, attachment_filename='output'+eo.outFormat)
     except Exception as e:
         return error500("ODC back-end failed processing! \n" + str(e))

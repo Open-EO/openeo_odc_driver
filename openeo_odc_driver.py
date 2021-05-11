@@ -44,7 +44,7 @@ client = Client(DASK_SCHEDULER_ADDRESS)
 
 
 class OpenEO():
-    def __init__(self,jsonProcessGraph,LOCAL_TEST=0):
+    def __init__(self,jsonProcessGraph):
         self.jsonProcessGraph = jsonProcessGraph
         self.data = None
         self.listExecutedIds = []
