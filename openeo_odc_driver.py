@@ -45,7 +45,6 @@ client = Client(DASK_SCHEDULER_ADDRESS)
 
 class OpenEO():
     def __init__(self,jsonProcessGraph,LOCAL_TEST=0):
-        self.LOCAL_TEST = LOCAL_TEST
         self.jsonProcessGraph = jsonProcessGraph
         self.data = None
         self.listExecutedIds = []
@@ -142,22 +141,10 @@ class OpenEO():
                             if 'method' in n.arguments:
                                 resamplingMethod = n.arguments['method']
 
-                if self.LOCAL_TEST==0:
-                    odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod)
-                    self.partialResults[node.id] = odc.data.to_array()
-                    self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
-                else:
-                    print('LOCAL TEST')
-                    if self.i==0:
-                        datacubePath = './test_datacubes/' + os.path.split(self.jsonProcessGraph)[1].split('.json')[0] + '.nc'
-                        print(datacubePath)
-                        self.i += 1
-                    else:
-                        datacubePath = './test_datacubes/' + os.path.split(self.jsonProcessGraph)[1].split('.json')[0] + str(self.i) + '.nc'
-
-                    print(datacubePath)
-                    ds = xr.open_dataset(datacubePath,chunks={})
-                    self.partialResults[node.id] = ds.to_array()
+                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod)
+                self.partialResults[node.id] = odc.data.to_array()
+                self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
+                
 
                 print(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
 
