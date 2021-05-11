@@ -20,12 +20,30 @@ git clone https://github.com/clausmichele/openeo-pg-parser-python.git
 cd openeo-pg-parser-python
 pip install .
 ```
+
+## Step 3:
+Modify the code with your system's details:
+1. In [odc_backend.py](https://github.com/SARScripts/openeo_odc_driver/blob/master/odc_backend.py) you have to insert the datacube-explorer address and the OpenDatcube config file path:
+```
+DATACUBE_EXPLORER_ENDPOINT = "http://0.0.0.0:9000"
+OPENDATACUBE_CONFIG_FILE = ""
+```
+2. In [odc_wrapper.py](https://github.com/SARScripts/openeo_odc_driver/blob/master/odc_wrapper.py) you have to insert the OpenDatcube config file path:
+```
+OPENDATACUBE_CONFIG_FILE = ""
+```
+3. In [openeo_odc_driver.py](https://github.com/SARScripts/openeo_odc_driver/blob/master/openeo_odc_driver.py) you have to insert the Dask Scheduler address and the tmp folder to write output files:
+```
+DASK_SCHEDULER_ADDRESS = ''
+TMP_FOLDER_PATH        = '' # Has to be accessible from all the Dask workers
+```
 If the environment creation step fails please create a Python 3.7 environment environment with the following libraries:
 gdal, xarray, rioxarray, dask, numpy, scipy, opencv and their dependencies.
-## Step 3: Test with local datacube
+## Step 4: Start the web server:
 ```
-python main.py ./process_graphs/EVI_L1C_D22.json --local 1
+gunicorn -c gunicorn.conf.py odc_backend:app
 ```
+
 
 # Implemented OpenEO processes
 ## aggregate & resample
