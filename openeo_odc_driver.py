@@ -98,7 +98,7 @@ class OpenEO():
                     timeEnd    = node.arguments['temporal_extent'][1]
 
                 # If there is a bounding-box or a polygon we set the variables, otherwise we pass the defaults
-                if 'spatial_extent' in node.arguments:
+                if 'spatial_extent' in node.arguments and node.arguments['spatial_extent'] is not None:
                     if 'south' in node.arguments['spatial_extent'] and \
                        'north' in node.arguments['spatial_extent'] and \
                        'east'  in node.arguments['spatial_extent'] and \
@@ -151,6 +151,31 @@ class OpenEO():
             if processName == 'resample_spatial':
                 source = node.arguments['data']['from_node']
                 self.partialResults[node.id] = self.partialResults[source]
+
+            if processName == 'resample_cube_spatial':
+                import odc.algo
+                print(node.arguments)
+                target = node.arguments['target']['from_node']
+                source = node.arguments['data']['from_node']
+                method = node.arguments['method']
+                print("SOURCE: ",self.partialResults[source])
+                print("TARGET: ",self.partialResults[target])
+                if method is None:
+                    method = 'nearest'
+                if method == 'near':
+                    method = 'nearest'
+                try:
+                    print('ODC-TOOLS')
+                    self.partialResults[node.id] = odc.algo._warp.xr_reproject(self.partialResults[source].compute(),self.partialResults[target].geobox,resampling=method).compute()
+                except Exception as e:
+                    print(e)
+                    try:
+                        print('RIOXARRAY')
+                        self.partialResults[node.id] = self.partialResults[source].rio.reproject_match(self.partialResults[target],resampling=method)
+                    except Exception as e:
+                        raise Exception("ODC Error in process: ",processName,'\n Full Python log:\n',str(e))
+
+                print(self.partialResults[node.id])
 
             if processName == 'resample_cube_temporal':
                 target = node.arguments['target']['from_node']
@@ -290,7 +315,7 @@ class OpenEO():
                     source = node.parent_process.arguments['data']['from_node']
                 else:
                     print('ERROR')
-                print(source)
+                print(self.partialResults[source])
                 noLabel = 1
                 if 'label' in node.arguments:
                     if node.arguments['label'] is not None:
@@ -626,8 +651,22 @@ class OpenEO():
                 spatialres = node.arguments['resolution']
                 output_crs = "epsg:" + str(node.arguments['crs'])
                 ## TODO: check if grid_lon and grid_lat are available, else raise error
-                grid_lon = self.partialResults[source].loc[dict(variable='grid_lon')].values
-                grid_lat = self.partialResults[source].loc[dict(variable='grid_lat')].values
+                try: 
+                    self.partialResults[source].loc[dict(variable='grid_lon')]
+                    self.partialResults[source].loc[dict(variable='grid_lat')]
+                    print('TRY')
+                    if len(self.partialResults[source].dims) >= 3:
+                        if len(self.partialResults[source].time)>=1 and len(self.partialResults[source].loc[dict(variable='grid_lon')].dims)>2:
+                            print('IF 1')
+                            print(self.partialResults[source].loc[dict(variable='grid_lon')])
+                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon',time=self.partialResults[source].time[0])].values
+                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat',time=self.partialResults[source].time[0])].values
+                        else:
+                            print('ELSE')
+                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon')].values
+                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat')].values
+                except Exception as e:
+                    print(e)    
                 x_regular, y_regular, grid_x_irregular, grid_y_irregular = create_S2grid(grid_lon,grid_lat,output_crs,spatialres)
                 grid_x_regular, grid_y_regular = np.meshgrid(x_regular,y_regular)
                 grid_x_irregular = grid_x_irregular.astype(np.float32)
@@ -636,7 +675,10 @@ class OpenEO():
                 y_regular = y_regular.astype(np.float32)
                 grid_x_regular = grid_x_regular.astype(np.float32)
                 grid_y_regular = grid_y_regular.astype(np.float32)
+                grid_x_regular_shape = grid_x_regular.shape
                 grid_regular_flat = np.asarray([grid_x_regular.flatten(), grid_y_regular.flatten()]).T
+                grid_x_regular = None
+                grid_y_regular = None
                 grid_irregular_flat = np.asarray([grid_x_irregular.flatten(), grid_y_irregular.flatten()]).T
                 grid_x_irregular = None
                 grid_y_irregular = None
@@ -687,9 +729,10 @@ class OpenEO():
                         print(t.values)
                         geocoded_dataset = None
                         for var in self.partialResults[source]['variable']:
+                            print(var.values)
                             if (var.values!='grid_lon' and var.values!='grid_lat'):
                                 data = self.partialResults[source].loc[dict(variable=var,time=t)]
-                                geocoded_data = data_geocoding(data,grid_regular_flat).reshape(grid_x_regular.shape)
+                                geocoded_data = data_geocoding(data,grid_regular_flat).reshape(grid_x_regular_shape)
                                 if geocoded_dataset is None:
                                     geocoded_dataset = geocoded_cube.assign_coords(time=t.values).expand_dims('time')
                                     geocoded_dataset[str(var.values)] = (("time","y", "x"),np.expand_dims(geocoded_data,axis=0))
@@ -706,17 +749,142 @@ class OpenEO():
                     for var in self.partialResults[source]['variable']:
                         if (var.values!='grid_lon' and var.values!='grid_lat'):
                             data = self.partialResults[source].loc[dict(variable=var)]
-                            geocoded_data = data_geocoding(data,grid_regular_flat).reshape(grid_x_regular.shape)
+                            geocoded_data = data_geocoding(data,grid_regular_flat).reshape(grid_x_regular_shape)
                             if geocoded_dataset is None:
                                 geocoded_cube[str(var.values)] = (("y", "x"),geocoded_data)
                                 geocoded_dataset = geocoded_cube
                             else:
                                 geocoded_dataset[str(var.values)] = (("y", "x"),geocoded_data)
 
-                    self.partialResults[node.id] = geocoded_dataset
-                
+                    self.partialResults[node.id] = geocoded_dataset.to_array()
+                print(self.partialResults[node.id])
                 print("Elapsed time: ", time() - start)
+            
+            if processName == 'radar_mask':
+                print(node.arguments)
+                source = node.arguments['data']['from_node']
+                threshold = node.arguments['threshold']
+                orbit = node.arguments['orbit']
+                
+                src = self.partialResults[source]
+                samples_dem = len(src.loc[dict(variable='DEM')].x)
+                lines_dem   = len(src.loc[dict(variable='DEM')].y)
+                dx = src.loc[dict(variable='DEM')].x[1].values - src.loc[dict(variable='DEM')].x[0].values  # Change based on geocoding output
+                dy = src.loc[dict(variable='DEM')].y[1].values - src.loc[dict(variable='DEM')].y[0].values
+                demdata = src.loc[dict(variable='DEM')].values
+                # heading for sentinel:
+                # ASC = -12.5°
+                # DSC = +12.5°
+                # Convert to radians before the usage
+                heading = -12.5*np.pi/180 #ASC
+                if orbit == 'DSC':
+                    heading = 12.5*np.pi/180
+                dx_p=dx*np.tan(heading)
+                dy_p=dy*np.tan(heading)
+                daz = 2*np.sqrt(dy_p**2+dy**2)
+                drg = 2*np.sqrt(dx_p**2+dx**2)
+                h_az_0 = demdata[0:lines_dem-3,0:samples_dem-3] + (demdata[0:lines_dem-3,2:samples_dem-1] - demdata[0:lines_dem-3,0:samples_dem-3])/(2*dx)*(dx+dx_p)
+                h_az_2 = demdata[2:lines_dem-1,0:samples_dem-3] + (demdata[2:lines_dem-1,2:samples_dem-1] - demdata[2:lines_dem-1,0:samples_dem-3])/(2*dx)*(dx-dx_p)
+                inc_h_az = -(h_az_2-h_az_0)
+                h_rg_0=demdata[0:lines_dem-3,0:samples_dem-3] + (demdata[2:lines_dem-1,0:samples_dem-3] - demdata[0:lines_dem-3,0:samples_dem-3])/(2*dy)*(dy-dy_p)
+                h_rg_2=demdata[0:lines_dem-3,2:samples_dem-1] + (demdata[2:lines_dem-1,2:samples_dem-1] - demdata[0:lines_dem-3,2:samples_dem-1])/(2*dy)*(dy+dy_p)
+                inc_h_rg=h_rg_2-h_rg_0
+                rg_sign = 0
+                az_sign = 0
+                if heading >= 0:
+                    az_sign=-1
+                    rg_sign=-1 
+                else:
+                    az_sign=1
+                    rg_sign=1
+                res_out_f = np.zeros((demdata.shape))
+                res_out_o = np.zeros((demdata.shape))
+                print(res_out_f.shape)
+                res_out_f[1:lines_dem-2,1:samples_dem-2] = np.arctan(inc_h_rg/drg)*rg_sign # range
+                res_out_o[1:lines_dem-2,1:samples_dem-2] = np.arctan(inc_h_az/daz)*az_sign
+                res_out_f_deg = res_out_f*180/np.pi
+                res_out_o_deg = res_out_o*180/np.pi
+                mean_incAngle = np.nanmean(src.loc[dict(variable='LIA')].values)
+                #foreshortening
+                foreshorteningTH   = float(threshold) # Foreshortening threshold
+                foreshortening     = np.bitwise_and(res_out_f_deg > 0,res_out_f_deg < mean_incAngle)*res_out_f_deg / mean_incAngle
+                foreshorteningMask = np.zeros((demdata.shape))
+                foreshorteningMask = (foreshortening > foreshorteningTH)
+                #layover
+                layover        = np.bitwise_and(res_out_f_deg > 0,res_out_f_deg > mean_incAngle)*res_out_f_deg / mean_incAngle
+                layover_Mask   = (layover > 0)
+                #shadowing
+                shadow      = np.bitwise_and(res_out_f_deg  < 0,np.abs(res_out_f_deg) > (90-mean_incAngle))
+                radar_mask = np.bitwise_not(np.bitwise_or(foreshorteningMask,np.bitwise_or(layover_Mask,shadow))).astype(np.float32)
+                tmp_dataset = xr.Dataset(
+                        coords={
+                            "y": (["y"],self.partialResults[source].y.values),
+                            "x": (["x"],self.partialResults[source].x.values)
+                        },
+                    )
+                tmp_dataset['mask'] = (("y","x"),radar_mask)
+                self.partialResults[node.id] = tmp_dataset.to_array()
 
+            if processName == 'coherence':
+                print(node.arguments)
+                #{'data': {'from_node': '1_0'}, 'timedelta': '6 days'}
+                source = node.arguments['data']['from_node']
+                timedelta_str = None
+                timedelta = 6
+                if 'timedelta' in node.arguments:
+                    timedelta_str =  node.arguments['timedelta']
+                if timedelta_str=='12 days':
+                    timedelta = 12
+                elif timedelta_str=='24 days':
+                    timedelta = 24
+                elif timedelta_str=='48 days':
+                    timedelta = 48
+                else:
+                    pass
+                    
+                # We put the timesteps of the datacube into an array
+                timesteps = self.partialResults[source]['time'].values
+                days_pairs = []
+                # We loop through the timesteps and check where we have 6-12-24 days pairs of dates
+
+                tmp_dataset_timeseries = None
+                for i,t in enumerate(timesteps[:-1]):
+                    if(np.timedelta64(timesteps[i+1] - timesteps[i], 'D')) == np.timedelta64(timedelta,'D'):
+                        days_pairs.append([timesteps[i],timesteps[i+1]])
+                
+                src = self.partialResults[source]
+                for i,pair in enumerate(days_pairs):
+                    print(pair)
+                    VV_q_coh = (src.loc[dict(variable='i_VV',time=pair[0])]*src.loc[dict(variable='i_VV',time=pair[1])]+src.loc[dict(variable='q_VV',time=pair[0])]*src.loc[dict(variable='q_VV',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VV',time=pair[0])]**2+src.loc[dict(variable='q_VV',time=pair[0])]**2)*(src.loc[dict(variable='i_VV',time=pair[1])]**2+src.loc[dict(variable='q_VV',time=pair[1])]**2))
+                    VV_i_coh = (src.loc[dict(variable='i_VV',time=pair[1])]*src.loc[dict(variable='q_VV',time=pair[0])]-src.loc[dict(variable='i_VV',time=pair[0])]*src.loc[dict(variable='q_VV',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VV',time=pair[0])]**2+src.loc[dict(variable='q_VV',time=pair[0])]**2)*(src.loc[dict(variable='i_VV',time=pair[1])]**2+src.loc[dict(variable='q_VV',time=pair[1])]**2))
+                    
+                    VH_q_coh = (src.loc[dict(variable='i_VH',time=pair[0])]*src.loc[dict(variable='i_VH',time=pair[1])]+src.loc[dict(variable='q_VH',time=pair[0])]*src.loc[dict(variable='q_VH',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VH',time=pair[0])]**2+src.loc[dict(variable='q_VH',time=pair[0])]**2)*(src.loc[dict(variable='i_VH',time=pair[1])]**2+src.loc[dict(variable='q_VH',time=pair[1])]**2))
+                    VH_i_coh = (src.loc[dict(variable='i_VH',time=pair[1])]*src.loc[dict(variable='q_VH',time=pair[0])]-src.loc[dict(variable='i_VH',time=pair[0])]*src.loc[dict(variable='q_VH',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VH',time=pair[0])]**2+src.loc[dict(variable='q_VH',time=pair[0])]**2)*(src.loc[dict(variable='i_VH',time=pair[1])]**2+src.loc[dict(variable='q_VH',time=pair[1])]**2))
+                                                 
+                    tmp_dataset = xr.Dataset(
+                        coords={
+                            "y": (["y"],self.partialResults[source].y.values),
+                            "x": (["x"],self.partialResults[source].x.values)
+                        },
+                    )
+                    if i==0:
+                        tmp_dataset = tmp_dataset.assign_coords(time=pair[0]).expand_dims('time')
+                        tmp_dataset['i_VV'] = (("time","y", "x"),VV_i_coh.expand_dims('time'))
+                        tmp_dataset['q_VV'] = (("time","y", "x"),VV_q_coh.expand_dims('time'))
+                        tmp_dataset['i_VH'] = (("time","y", "x"),VH_i_coh.expand_dims('time'))
+                        tmp_dataset['q_VH'] = (("time","y", "x"),VH_q_coh.expand_dims('time'))
+                        tmp_dataset_timeseries = tmp_dataset
+                    else:
+                        tmp_dataset = tmp_dataset.assign_coords(time=pair[0]).expand_dims('time')
+                        tmp_dataset['i_VV'] = (("time","y", "x"),VV_i_coh.expand_dims('time'))
+                        tmp_dataset['q_VV'] = (("time","y", "x"),VV_q_coh.expand_dims('time'))
+                        tmp_dataset['i_VH'] = (("time","y", "x"),VH_i_coh.expand_dims('time'))
+                        tmp_dataset['q_VH'] = (("time","y", "x"),VH_q_coh.expand_dims('time'))
+                        tmp_dataset_timeseries = xr.concat([tmp_dataset_timeseries,tmp_dataset],dim='time')
+                
+                print('COHERENCE RESULT:\n',tmp_dataset_timeseries.to_array())
+                self.partialResults[node.id] = tmp_dataset_timeseries.to_array()
+                
             if processName == 'save_result':
                 outFormat = node.arguments['format']
                 source = node.arguments['data']['from_node']
@@ -817,8 +985,16 @@ class OpenEO():
                         self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
                     except:
                         pass
-                    return 0
-
+                    return 
+                
+                if outFormat in ['JSON','json']:
+                    self.outFormat = '.json'
+                    self.mimeType = 'application/json'
+                    self.partialResults[node.id] = self.partialResults[source].to_dict()
+                    with open(self.tmpFolderPath + "/output.json", 'w') as outfile:
+                        json.dump(self.partialResults[node.id],outfile)
+                    return 
+                
                 else:
                     raise Exception("[!] Output format not recognized/implemented!")
 
