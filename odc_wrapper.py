@@ -12,6 +12,8 @@ import fiona
 import shapely.geometry
 import rasterio
 from datacube.utils import geometry
+from datacube.utils.geometry import Geometry, CRS
+import dea_tools.datahandling  # or some other submodule
 
 OPENDATACUBE_CONFIG_FILE = ""
 
@@ -52,7 +54,10 @@ class Odc:
         if self.bands is not None:
             query['measurements'] = self.bands
         if self.polygon is not None:
-            self.get_bbox()
+            crs = CRS("epsg:4326")
+            geom = Geometry(geom=self.polygon, crs=crs)
+            query['geopolygon'] = geom
+            #self.get_bbox()
         if (self.lowLat is not None and self.highLat is not None and self.lowLon is not None and self.highLon is not None and not self.sar2cube_collection()):
             query['latitude']  = (self.lowLat,self.highLat)
             query['longitude'] = (self.lowLon,self.highLon)
@@ -71,8 +76,25 @@ class Odc:
             else:
                 ##TODO add other method parsing here
                 self.query['resampling'] = self.resamplingMethod
-        self.data = self.dc.load(datasets=datasets,**self.query)
-        if (self.lowLat is not None and self.highLat is not None and self.lowLon is not None and self.highLon is not None and self.sar2cube_collection()):
+        
+        try:
+            self.data = self.dc.load(datasets=datasets,**self.query)
+        except Exception as e:
+            print(e)
+            if (str(e)=='Product has no default CRS. Must specify \'output_crs\' and \'resolution\''):
+                # Identify the most common projection system in the input query
+                crs_query = self.query
+                crs_query.pop('product')
+                crs_query.pop('dask_chunks')
+                output_crs = dea_tools.datahandling.mostcommon_crs(dc=self.dc, product=self.collections, query=crs_query)
+                self.query['output_crs'] = output_crs
+                self.query['resolution'] = [10,10]
+                self.data = self.dc.load(datasets=datasets,**self.query)
+            else:
+                raise Exception(str(e))
+
+            
+        if (self.sar2cube_collection() and self.lowLat is not None and self.highLat is not None and self.lowLon is not None and self.highLon is not None):
             bbox = [self.highLon,self.lowLat,self.lowLon,self.highLat]
             bbox_mask = np.bitwise_and(np.bitwise_and(self.data.grid_lon[0]>bbox[0],self.data.grid_lon[0]<bbox[2]),np.bitwise_and(self.data.grid_lat[0]>bbox[1],self.data.grid_lat[0]<bbox[3]))
             self.data = self.data.where(bbox_mask,drop=True)
