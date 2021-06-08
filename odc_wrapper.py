@@ -4,6 +4,7 @@
 
 import datacube
 import numpy as np
+import copy
 from datetime import datetime
 import shapely
 from shapely.geometry import shape
@@ -83,7 +84,7 @@ class Odc:
             print(e)
             if (str(e)=='Product has no default CRS. Must specify \'output_crs\' and \'resolution\''):
                 # Identify the most common projection system in the input query
-                crs_query = self.query
+                crs_query = copy.deepcopy(self.query)
                 crs_query.pop('product')
                 crs_query.pop('dask_chunks')
                 output_crs = dea_tools.datahandling.mostcommon_crs(dc=self.dc, product=self.collections, query=crs_query)

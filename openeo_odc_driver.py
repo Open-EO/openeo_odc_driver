@@ -51,11 +51,12 @@ class OpenEO():
         self.partialResults = {}
         self.crs = None
         self.bands = None
-        self.graph = translate_process_graph(jsonProcessGraph).sort(by='dependency')
+        self.graph = translate_process_graph(jsonProcessGraph).sort(by='result')
         self.outFormat = None
         self.mimeType = None
         self.i = 0
         self.tmpFolderPath = TMP_FOLDER_PATH + str(uuid.uuid4())
+        self.sar2cubeCollection = False
         try:
             os.mkdir(self.tmpFolderPath)
         except:
@@ -92,7 +93,8 @@ class OpenEO():
                 collection = node.arguments['id'] # The datacube we have to load
                 if collection is None:
                     raise Exception('[!] You must provide a collection which provides the data!')
-
+                self.sar2cubeCollection = ('SAR2Cube' in collection) # Return True if it's a SAR2Cube collection
+        
                 if node.arguments['temporal_extent'] is not None:
                     timeStart  = node.arguments['temporal_extent'][0]
                     timeEnd    = node.arguments['temporal_extent'][1]
@@ -110,7 +112,7 @@ class OpenEO():
 
                     elif 'coordinates' in node.arguments['spatial_extent']:
                         # Pass coordinates to odc and process them there
-                        polygon = node.arguments['spatial_extent']['coordinates']
+                        polygon = node.arguments['spatial_extent']
 
                 for n in self.graph: # Let's look for resample_spatial nodes
                     parentID = 0
@@ -154,12 +156,9 @@ class OpenEO():
 
             if processName == 'resample_cube_spatial':
                 import odc.algo
-                print(node.arguments)
                 target = node.arguments['target']['from_node']
                 source = node.arguments['data']['from_node']
                 method = node.arguments['method']
-                print("SOURCE: ",self.partialResults[source])
-                print("TARGET: ",self.partialResults[target])
                 if method is None:
                     method = 'nearest'
                 if method == 'near':
@@ -174,8 +173,6 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].rio.reproject_match(self.partialResults[target],resampling=method)
                     except Exception as e:
                         raise Exception("ODC Error in process: ",processName,'\n Full Python log:\n',str(e))
-
-                print(self.partialResults[node.id])
 
             if processName == 'resample_cube_temporal':
                 target = node.arguments['target']['from_node']
@@ -400,6 +397,7 @@ class OpenEO():
                     source = node.parent_process.arguments['data']['from_node']
                 else:
                     print('ERROR')
+                self.partialResults[source] = self.partialResults[source].astype(np.float32)
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').mean().coarsen(y=yDim,boundary = 'pad').mean()
@@ -425,6 +423,7 @@ class OpenEO():
                     source = node.parent_process.arguments['data']['from_node']
                 else:
                     print('ERROR')
+                self.partialResults[source] = self.partialResults[source].astype(np.float32)
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,boundary = 'pad').median().coarsen(y=yDim,boundary = 'pad').median()
@@ -488,22 +487,20 @@ class OpenEO():
 
             if processName == 'rename_labels':
                 source = node.arguments['data']['from_node']
-                try:
-                    len(self.partialResults[source].coords['time'])
+                # We need to create a new dataset, with time dimension if present.
+                if 'time' in self.partialResults[source].coords:
                     tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
-                except:
+                else:
                     tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
                 for i in range(len(node.arguments['target'])):
                     label_target = node.arguments['target'][i]
-                    try:
-                        node.arguments['source'][0]
+                    if (len(node.arguments['source']))>0:
                         label_source = node.arguments['source'][i]
                         tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
-                    except:
-                        try:
-                            self.partialResults[source].coords['variable']
+                    else:
+                        if 'variable' in self.partialResults[source].coords:
                             tmp = tmp.assign({label_target:self.partialResults[source][i]})
-                        except:
+                        else:
                             tmp = tmp.assign({label_target:self.partialResults[source]})
                 self.partialResults[node.id] = tmp.to_array()
 
@@ -528,7 +525,6 @@ class OpenEO():
                 ds1 = self.partialResults[cube1]
                 ds2 = self.partialResults[cube2]
                 self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
-                print(ds1,ds2)
                 print(self.partialResults[node.id])
             if processName == 'if':
                 acceptVal = None
