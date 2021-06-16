@@ -884,8 +884,7 @@ class OpenEO():
             if processName == 'save_result':
                 outFormat = node.arguments['format']
                 source = node.arguments['data']['from_node']
-                print(self.partialResults[source])
-                if outFormat=='PNG':
+                if outFormat.lower() == 'png':
                     self.outFormat = '.png'
                     self.mimeType = 'image/png'
                     import cv2
@@ -939,7 +938,7 @@ class OpenEO():
                     cv2.imwrite(self.tmpFolderPath + '/output.png',bgr)
                     return 0
 
-                if outFormat=='GTiff' or outFormat=='GTIFF' or outFormat=='GEOTIFF':
+                if outFormat.lower() in ['gtiff','geotiff','tif','tiff']:
                     self.outFormat = '.tif'
                     self.mimeType = 'image/tiff'
                     import rioxarray
@@ -967,18 +966,41 @@ class OpenEO():
                     self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tif")
                     return 0
 
-                if outFormat in ['NETCDF','netcdf','NetCDF','netCDF','Netcdf']:
+                if outFormat.lower() in ['netcdf','nc']:
                     self.outFormat = '.nc'
                     self.mimeType = 'application/octet-stream'
-                    print(self.partialResults[source])
+                    # The following code is required to recreate a Dataset from the final result as Dataarray, to get a well formatted netCDF
+                    if 'time' in self.partialResults[source].coords:
+                        tmp = xr.Dataset(coords={'t':self.partialResults[source].time.values,'y':self.partialResults[source].y,'x':self.partialResults[source].x})
+                        if 'variable' in self.partialResults[source].coords:
+                            try:
+                                for var in self.partialResults[source]['variable'].values:
+                                    tmp[str(var)] = (('t','y','x'),self.partialResults[source].loc[dict(variable=var)])
+                            except Exception as e:
+                                print(e)
+                                tmp[str((self.partialResults[source]['variable'].values))] = (('t','y','x'),self.partialResults[source])
+                        else:
+                            tmp['result'] = (('t','y','x'),self.partialResults[source])
+                    else:
+                        tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
+                        if 'variable' in self.partialResults[source].coords:
+                            try:
+                                for var in self.partialResults[source]['variable'].values:
+                                    tmp[str(var)] = (('y','x'),self.partialResults[source].loc[dict(variable=var)])
+                            except:
+                                tmp[str((self.partialResults[source]['variable'].values))] = (('y','x'),self.partialResults[source])
+                        else:
+                            tmp['result'] = (('y','x'),self.partialResults[source])
+                            
+                    tmp.attrs = self.partialResults[source].attrs
     #                 self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
-                        self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
+                        tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
                     except:
                         pass
                     try:
-                        self.partialResults[source].time.attrs.pop('units', None)
-                        self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
+                        tmp.t.attrs.pop('units', None)
+                        tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
                     except:
                         pass
                     return 
