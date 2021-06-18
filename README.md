@@ -1,5 +1,5 @@
 # OpenEO_ODC_Driver
-OpenEO process graph executor written in Python based on OpenDataCube, Xarray and Dask
+OpenEO processing engine written in Python based on OpenDataCube, Xarray and Dask.
 
 <p float="left">
   <img src="/img/openeo_logo.png" width="200" />
