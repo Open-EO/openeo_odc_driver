@@ -48,12 +48,9 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 # Implemented OpenEO processes
 ## aggregate & resample
 - resample_cube_temporal
-- resample_spatial
+- resample_cube_spatial
 ## arrays
 - array_element
-## climatology
-- climatological_normal (only monthly frquency at the moment)
-- anomaly (only monthly frquency at the moment)
 ## comparison
 - if
 - lt
@@ -92,8 +89,11 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 - power
 - absolute
 - linear_scale_range
-## experimental processes
+## experimental processes (SAR2Cube)
 - aggregate_spatial_window
+- coherence
+- geocoding
+- radar_mask
 
 
 
