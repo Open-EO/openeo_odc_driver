@@ -32,6 +32,7 @@ from dask.distributed import Client
 from dask import delayed
 # openEO & SAR2Cube specific
 from openeo_pg_parser.translate import translate_process_graph
+from openEO_error_messages import *
 from odc_wrapper import Odc
 try:
     from sar2cube_utils import *
@@ -144,6 +145,8 @@ class OpenEO():
                                 resamplingMethod = n.arguments['method']
 
                 odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod)
+                if len(odc.data) == 0:
+                    raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
                 self.partialResults[node.id] = odc.data.to_array()
                 self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
                 
@@ -201,6 +204,9 @@ class OpenEO():
                     if 'from_node' in node.arguments['x']:
                         source = node.arguments['x']['from_node']
                     elif 'from_parameter' in node.arguments['x']:
+                        if node.parent_process.process_id == 'merge_cubes':
+                            source = node.parent_process.arguments['cube1']['from_node']
+                        else:
                         source = node.parent_process.arguments['data']['from_node']
                     x = self.partialResults[source]
                 if isinstance(node.arguments['y'],float) or isinstance(node.arguments['y'],int):
@@ -209,6 +215,9 @@ class OpenEO():
                     if 'from_node' in node.arguments['y']:
                         source = node.arguments['y']['from_node']
                     elif 'from_parameter' in node.arguments['y']:
+                        if node.parent_process.process_id == 'merge_cubes':
+                            source = node.parent_process.arguments['cube2']['from_node']
+                        else:
                         source = node.parent_process.arguments['data']['from_node']
                     y = self.partialResults[source]
                 if processName == 'multiply':
@@ -305,14 +314,12 @@ class OpenEO():
                 self.partialResults[node.id] = np.bitwise_or(self.partialResults[x],self.partialResults[y])
 
             if processName == 'array_element':
-                print(node.arguments)
                 if 'from_node' in node.arguments['data']:
                     source = node.arguments['data']['from_node']
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
                     print('ERROR')
-                print(self.partialResults[source])
                 noLabel = 1
                 if 'label' in node.arguments:
                     if node.arguments['label'] is not None:
@@ -454,8 +461,6 @@ class OpenEO():
                 self.partialResults[node.id] = abs(self.partialResults[source])
 
             if processName == 'linear_scale_range':
-                print(node.arguments)
-                print(node.parent_process)
                 parent = node.parent_process # I need to read the parent apply process
                 if 'from_node' in parent.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
@@ -505,10 +510,7 @@ class OpenEO():
                 self.partialResults[node.id] = tmp.to_array()
 
             if processName == 'add_dimension':
-                print(node.content)
-
                 source = node.arguments['data']['from_node']
-                print(self.partialResults[source])
                 try:
                     len(self.partialResults[source].coords['time'])
                     tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
@@ -517,15 +519,113 @@ class OpenEO():
                 label_target = node.arguments['label']
                 tmp = tmp.assign({label_target:self.partialResults[source]})
                 self.partialResults[node.id] = tmp.to_array()
-                print(self.partialResults[node.id])
 
             if processName == 'merge_cubes':
+                # x,y,t + x,y (requires overlap resolver)
+                # x,y,bands + x,y (requires overlap resolver)
+                # x,y,t,bands + x,y (requires overlap resolver)
+                # x,y,t,bands + x,y,bands falls into multiple categories. Depending on how the bands are structured. If they have the same bands, they need an overlap resolver. Bands that do only exist in one the cubes, get concatenated.
+                #print(node.arguments)
+                
+                ## dimensions check
                 cube1 = node.arguments['cube1']['from_node']
                 cube2 = node.arguments['cube2']['from_node']
-                ds1 = self.partialResults[cube1]
-                ds2 = self.partialResults[cube2]
-                self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
-                print(self.partialResults[node.id])
+                cube1_dims = self.partialResults[cube1].dims
+                cube2_dims = self.partialResults[cube2].dims
+                #print(cube1_dims)
+                #print(cube2_dims)
+                #dimensions are x, y, time, variable.
+                if cube1_dims == cube2_dims:
+                    # We need to check if they have bands
+                    if 'variable' in cube1_dims and 'variable' in cube2_dims:
+                        # We need to check if the bands are different or there are some common ones
+                        cube1_bands = self.partialResults[cube1]['variable'].values
+                        cube2_bands = self.partialResults[cube2]['variable'].values
+                        # Simple case: same bands in both datacubes
+                        if cube1_bands == cube2_bands:
+                            #Overlap resolver required
+                            if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
+                                source = node.arguments['overlap_resolver']['from_node']
+                                self.partialResults[node.id] = self.partialResults[source]
+                            else:
+                                raise Exception(OverlapResolverMissing)
+                        else:
+                            #Check if at least one band is in common
+                            common_band = False
+                            for v in cube1_bands:
+                                if v in cube2_bands: common_band=True
+                            if common_band:
+                                #Complicate case where overlap_resolver has to be appliead only on one or some bands
+                                raise Exception("[!] Trying to merge two datacubes with one or more common bands, not supported yet!")
+                            else:
+                                #Simple case where all the bands are different and we can just concatenate the datacubes without overlap resolver
+                                ds1 = self.partialResults[cube1]
+                                ds2 = self.partialResults[cube2]
+                                self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
+                    else:
+                        # We don't have bands, dimensions are either x,y or x,y,t for both datacubes
+                        if 'time' in cube1_dims:
+                            # TODO: check if the timesteps are the same, if yes use overlap resolver
+                            cube1_time = self.partialResults[cube1].time.values
+                            cube2_time = self.partialResults[cube2].time.values
+                            if (cube1_time == cube2_time).all():
+                                #Overlap resolver required
+                                if 'overlap_resolver' in node.arguments:
+                                    try:
+                                        source = node.arguments['overlap_resolver']['from_node']
+                                        self.partialResults[node.id] = self.partialResults[source]
+                                    except:
+                                        raise Exception(OverlapResolverMissing)
+                                else:
+                                    raise Exception(OverlapResolverMissing)
+                            ## TODO: Case when only some timesteps are the same
+                            ## TODO: Case when no timesteps are in common
+                        else:
+                            # We have only x,y (or maybe only x or only y)
+                            # Overlap resolver required
+                            if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
+                                source = node.arguments['overlap_resolver']['from_node']
+                                self.partialResults[node.id] = self.partialResults[source]
+                            else:
+                                raise Exception(OverlapResolverMissing)
+                else:
+                    raise Exception("[!] Trying to merge two datacubes with different dimensions, not supported yet!")
+                
+#                 if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
+#                         source = node.arguments['overlap_resolver']['from_node']
+#                         self.partialResults[node.id] = self.partialResults[source]
+#                 else:
+#                     cube1 = node.arguments['cube1']['from_node']
+#                     cube2 = node.arguments['cube2']['from_node']
+#                     ds1 = self.partialResults[cube1]
+#                     ds2 = self.partialResults[cube2]
+#                     print('++++',ds1)
+#                     print('++++',ds2)
+#                     self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
+#                     print(self.partialResults[node.id])
+                
+#                 if 'time' in self.partialResults[source].coords:
+#                         tmp = xr.Dataset(coords={'t':self.partialResults[source].time.values,'y':self.partialResults[source].y,'x':self.partialResults[source].x})
+#                         if 'variable' in self.partialResults[source].coords:
+#                             try:
+#                                 for var in self.partialResults[source]['variable'].values:
+#                                     tmp[str(var)] = (('t','y','x'),self.partialResults[source].loc[dict(variable=var)])
+#                             except Exception as e:
+#                                 print(e)
+#                                 tmp[str((self.partialResults[source]['variable'].values))] = (('t','y','x'),self.partialResults[source])
+#                         else:
+#                             tmp['result'] = (('t','y','x'),self.partialResults[source])
+#                     else:
+#                         tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
+#                         if 'variable' in self.partialResults[source].coords:
+#                             try:
+#                                 for var in self.partialResults[source]['variable'].values:
+#                                     tmp[str(var)] = (('y','x'),self.partialResults[source].loc[dict(variable=var)])
+#                             except:
+#                                 tmp[str((self.partialResults[source]['variable'].values))] = (('y','x'),self.partialResults[source])
+#                         else:
+#                             tmp['result'] = (('y','x'),self.partialResults[source])
+                
             if processName == 'if':
                 acceptVal = None
                 rejectVal = None
@@ -795,7 +895,6 @@ class OpenEO():
                     rg_sign=1
                 res_out_f = np.zeros((demdata.shape))
                 res_out_o = np.zeros((demdata.shape))
-                print(res_out_f.shape)
                 res_out_f[1:lines_dem-2,1:samples_dem-2] = np.arctan(inc_h_rg/drg)*rg_sign # range
                 res_out_o[1:lines_dem-2,1:samples_dem-2] = np.arctan(inc_h_az/daz)*az_sign
                 res_out_f_deg = res_out_f*180/np.pi
@@ -1005,7 +1104,7 @@ class OpenEO():
                         pass
                     return 
                 
-                if outFormat in ['JSON','json']:
+                if outFormat.lower == 'json':
                     self.outFormat = '.json'
                     self.mimeType = 'application/json'
                     self.partialResults[node.id] = self.partialResults[source].to_dict()
@@ -1029,5 +1128,5 @@ class OpenEO():
         
         except Exception as e:
             print(e)
-            raise Exception("ODC Error in process: ",processName,'\n Full Python log:\n',str(e))
+            raise Exception(processName + '\n' + str(e))
         
