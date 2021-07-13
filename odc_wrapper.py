@@ -55,10 +55,10 @@ class Odc:
         if self.bands is not None:
             query['measurements'] = self.bands
         if self.polygon is not None:
-            crs = CRS("epsg:4326")
-            geom = Geometry(geom=self.polygon, crs=crs)
-            query['geopolygon'] = geom
-            #self.get_bbox()
+            #crs = CRS("epsg:4326")
+            #geom = Geometry(geom=self.polygon, crs=crs)
+            #query['geopolygon'] = geom
+            self.get_bbox()
         if (self.lowLat is not None and self.highLat is not None and self.lowLon is not None and self.highLon is not None and not self.sar2cube_collection()):
             query['latitude']  = (self.lowLat,self.highLat)
             query['longitude'] = (self.lowLon,self.highLon)
