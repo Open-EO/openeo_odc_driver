@@ -708,13 +708,20 @@ class OpenEO():
                         # Simple case: same bands in both datacubes
                         print("Simple case: same bands in both datacubes")
                         if (cube1_bands == cube2_bands).all():
-                            #Overlap resolver required
-                            print("Overlap resolver required")
-                            if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
-                                source = node.arguments['overlap_resolver']['from_node']
-                                self.partialResults[node.id] = self.partialResults[source]
+                            print("We need to check if the timestep are different, if yes we can merge directly")
+                            if (self.partialResults[cube1].time.values != self.partialResults[cube2].time.values).all():
+                                self.partialResults[node.id] = xr.concat([self.partialResults[cube1],self.partialResults[cube2]],dim='time')
                             else:
-                                raise Exception(OverlapResolverMissing)
+                                #Overlap resolver required
+                                print("Overlap resolver required")
+                                if 'overlap_resolver' in node.arguments:
+                                    if 'from_node' in node.arguments['overlap_resolver']:
+                                        source = node.arguments['overlap_resolver']['from_node']
+                                        self.partialResults[node.id] = self.partialResults[source]
+                                    else:
+                                        raise Exception(OverlapResolverMissing)
+                                else:
+                                    raise Exception(OverlapResolverMissing)
                         else:
                             #Check if at least one band is in common
                             print("Check if at least one band is in common")
@@ -1305,6 +1312,7 @@ class OpenEO():
                             dsize = (width, height)
                             bgr = cv2.resize(bgr, dsize)
                     bgr = bgr.astype(np.uint8)
+                    if(self.sar2cubeCollection): bgr=np.flipud(bgr)
                     cv2.imwrite(str(self.tmpFolderPath) + '/output.png',bgr)
                     return 0
 
