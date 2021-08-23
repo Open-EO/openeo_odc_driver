@@ -171,16 +171,19 @@ def construct_stac_collection(collectionName):
     items = res.json()
 
     ## TODO: remove this part when all the datacubes have a metadata file, crs comes from there
-    yamlFile = items['features'][0]['assets']['location']['href']
-    yamlFile = yamlFile.split('file://')[1].replace('%40','@').replace('%3A',':')
+    try:
+        yamlFile = items['features'][0]['assets']['location']['href']
+        yamlFile = yamlFile.split('file://')[1].replace('%40','@').replace('%3A',':')
 
     with open(yamlFile, 'r') as stream:
         try:
             yamlDATA = yaml.safe_load(stream)
             stacCollection['cube:dimensions']['X']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
-            stacCollection['cube:dimensions']['Y']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
-        except Exception as e:
-            print(e)
+                stacCollection['cube:dimensions']['Y']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
+            except Exception as e:
+                print(e)
+    except:
+        pass
 
     ### BANDS FROM DATACUBE-EXPLORER
     keys = items['features'][0]['assets'].keys()
