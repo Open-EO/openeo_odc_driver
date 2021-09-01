@@ -50,7 +50,7 @@ class OpenEO():
     def __init__(self,jsonProcessGraph):
         self.jsonProcessGraph = jsonProcessGraph
         try:
-        self.jobId = jsonProcessGraph['id']
+            self.jobId = jsonProcessGraph['id']
         except:
             self.jobId = "None"
         self.data = None
@@ -265,10 +265,10 @@ class OpenEO():
                     if isinstance(node.arguments['x'],float) or isinstance(node.arguments['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
                         x = node.arguments['x']
                     else:
-                    if 'from_node' in node.arguments['x']:
-                        source = node.arguments['x']['from_node']
-                    elif 'from_parameter' in node.arguments['x']:
-                        if node.parent_process.process_id == 'merge_cubes':
+                        if 'from_node' in node.arguments['x']:
+                            source = node.arguments['x']['from_node']
+                        elif 'from_parameter' in node.arguments['x']:
+                            if node.parent_process.process_id == 'merge_cubes':
                                 source = node.parent_process.arguments['cube1']['from_node']
                             else:
                                 source = node.parent_process.arguments['data']['from_node']
@@ -278,10 +278,10 @@ class OpenEO():
                     if isinstance(node.arguments['y'],float) or isinstance(node.arguments['y'],int):
                         y = node.arguments['y']
                     else:
-                    if 'from_node' in node.arguments['y']:
-                        source = node.arguments['y']['from_node']
-                    elif 'from_parameter' in node.arguments['y']:
-                        if node.parent_process.process_id == 'merge_cubes':
+                        if 'from_node' in node.arguments['y']:
+                            source = node.arguments['y']['from_node']
+                        elif 'from_parameter' in node.arguments['y']:
+                            if node.parent_process.process_id == 'merge_cubes':
                                 source = node.parent_process.arguments['cube2']['from_node']
                             else:
                                 source = node.parent_process.arguments['data']['from_node']
@@ -911,9 +911,9 @@ class OpenEO():
                 else:
                     mask = self.partialResults[maskSource]
                 self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(mask))
-                if 'replacement' in node.arguments:
-                    burnValue  = node.arguments['replacement']
-                    self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
+                if 'replacement' in node.arguments and node.arguments['replacement'] is not None:
+                        burnValue  = node.arguments['replacement']
+                        self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
             
             if processName == 'climatological_normal':
                 source             = node.arguments['data']['from_node']
