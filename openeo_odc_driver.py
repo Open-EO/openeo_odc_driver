@@ -13,6 +13,7 @@ import uuid
 # Math
 import math
 import numpy as np
+import scipy
 from scipy.interpolate import griddata
 from scipy.spatial import Delaunay
 from scipy.interpolate import LinearNDInterpolator
@@ -206,7 +207,7 @@ class OpenEO():
                             else:
                                 self.partialResults[node.id] = "(" + x  + "*" + y + ")"
                         elif processName == 'divide':
-                            if y==0:
+                            if (isinstance(y,float) or isinstance(y,int)) and y==0:
                                 raise Exception(DivisionByZero)
                             else:
                                 self.partialResults[node.id] = "(" + x + "/" + y + ")"
@@ -1399,7 +1400,7 @@ class OpenEO():
                     else:
                         self.partialResults[node.id] = self.partialResults[source] 
                     self.partialResults[node.id].attrs['crs'] = self.crs
-                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tif")
+                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tiff")
                     return 0
 
                 if outFormat.lower() in ['netcdf','nc']:
