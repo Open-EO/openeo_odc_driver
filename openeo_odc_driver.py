@@ -715,7 +715,37 @@ class OpenEO():
                 bandsToKeep = node.arguments['bands']
                 source = node.arguments['data']['from_node']
                 self.partialResults[node.id]  = self.partialResults[source].loc[dict(variable=bandsToKeep)]
-
+            
+            if processName == 'filter_bbox':
+                source = node.arguments['data']['from_node']
+                bbox_4326 = node.arguments['extent']
+                if bbox_4326 is not None:
+                    bbox_points_4326 = [[bbox_4326["south"],bbox_4326["west"]],
+                       [bbox_4326["south"],bbox_4326["east"]],
+                       [bbox_4326["north"],bbox_4326["east"]],
+                       [bbox_4326["north"],bbox_4326["west"]]]
+                else:
+                    raise Exception("[!] No spatial extent provided in filter_bbox !")
+                    return
+                transformer = Transformer.from_crs("epsg:4326", "epsg:"+str(self.partialResults[source].spatial_ref.values))
+                
+                x_t = []
+                y_t = []
+                for p in bbox_points_4326:     
+                    x1,y1 = p
+                    x2,y2 = transformer.transform(x1,y1)
+                    x_t.append(x2)
+                    y_t.append(y2)
+                    
+                x_t = np.array(x_t)
+                y_t = np.array(y_t)
+                x_min = x_t.min()
+                x_max = x_t.max()
+                y_min = y_t.min()
+                y_max = y_t.max()
+                
+                self.partialResults[node.id] = self.partialResults[source].loc[dict(x=slice(x_min,x_max),y=slice(y_max,y_min))]
+                
             if processName == 'rename_labels':
                 source = node.arguments['data']['from_node']
                 # We need to create a new dataset, with time dimension if present.
