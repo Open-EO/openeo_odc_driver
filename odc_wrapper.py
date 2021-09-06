@@ -15,8 +15,7 @@ import rasterio
 from datacube.utils import geometry
 from datacube.utils.geometry import Geometry, CRS
 import dea_tools.datahandling  # or some other submodule
-
-OPENDATACUBE_CONFIG_FILE = ""
+from config import *
 
 class Odc:
     def __init__(self,collections=None,timeStart=None,timeEnd=None,lowLat=None,\

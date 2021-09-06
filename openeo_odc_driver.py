@@ -36,16 +36,15 @@ from dask import delayed
 from openeo_pg_parser.translate import translate_process_graph
 from openEO_error_messages import *
 from odc_wrapper import Odc
+from config import *
 try:
     from sar2cube_utils import *
 except:
     pass
 
-DASK_SCHEDULER_ADDRESS = ''
-TMP_FOLDER_PATH        = '' # Has to be accessible from all the Dask workers
-OPENEO_PROCESSES       = 'https://openeo.eurac.edu/processes' # The processes available at the back-end
 client = Client(DASK_SCHEDULER_ADDRESS)
-    
+print('DASK: ',client)
+print('DASBOARD: ',client.dashboard_link)
 
 class OpenEO():
     def __init__(self,jsonProcessGraph):
