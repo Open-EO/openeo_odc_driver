@@ -173,11 +173,11 @@ def construct_stac_collection(collectionName):
             try:
                 yamlDATA = yaml.safe_load(stream)
                 stacCollection['cube:dimensions']['X']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
-                    stacCollection['cube:dimensions']['Y']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
-                except Exception as e:
-                    print(e)
-    except:
-        pass
+                stacCollection['cube:dimensions']['Y']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
+            except Exception as e:
+                print(e)
+    except Exception as e:
+        print(e)
 
     ### BANDS FROM DATACUBE-EXPLORER
     keys = items['features'][0]['assets'].keys()
