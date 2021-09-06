@@ -724,10 +724,14 @@ class OpenEO():
                        [bbox_4326["south"],bbox_4326["east"]],
                        [bbox_4326["north"],bbox_4326["east"]],
                        [bbox_4326["north"],bbox_4326["west"]]]
+                    if "crs" in bbox_4326 and bbox_4326["crs"] is not None:
+                        source_crs = bbox_4326["crs"]
+                    else:
+                        source_crs = "4326"
                 else:
                     raise Exception("[!] No spatial extent provided in filter_bbox !")
                     return
-                transformer = Transformer.from_crs("epsg:4326", "epsg:"+str(self.partialResults[source].spatial_ref.values))
+                transformer = Transformer.from_crs("epsg:" + source_crs, "epsg:"+str(self.partialResults[source].spatial_ref.values))
                 
                 x_t = []
                 y_t = []
