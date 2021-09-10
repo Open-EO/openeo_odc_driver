@@ -629,23 +629,41 @@ class OpenEO():
                 xarrayPeriod = str(periodDict[period])
                 print(xarrayPeriod)
                 supportedReducers = ['sum','product','min','max','median','mean','sd']
-                if reducer == 'sum':
-                    self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).sum()
-                elif reducer == 'product':
-                    self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).prod()
-                elif reducer == 'min':
-                    self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).min()
-                elif reducer == 'max':
-                    self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).max()
-                elif reducer == 'median':
-                    self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).median()
-                elif reducer == 'mean':
-                    self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).mean()
-                elif reducer == 'sd':
-                    self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).std()
-                else:
-                    raise Exception("The selected reducer is not supported. Please use one of: " + supportedReducers)
-                
+                try:
+                    if reducer == 'sum':
+                        self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).sum()
+                    elif reducer == 'product':
+                        self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).prod()
+                    elif reducer == 'min':
+                        self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).min()
+                    elif reducer == 'max':
+                        self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).max()
+                    elif reducer == 'median':
+                        self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).median()
+                    elif reducer == 'mean':
+                        self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).mean()
+                    elif reducer == 'sd':
+                        self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).std()
+                    else:
+                        raise Exception("The selected reducer is not supported. Please use one of: " + supportedReducers)
+                except:
+                    if reducer == 'sum':
+                        self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).sum()
+                    elif reducer == 'product':
+                        self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).prod()
+                    elif reducer == 'min':
+                        self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).min()
+                    elif reducer == 'max':
+                        self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).max()
+                    elif reducer == 'median':
+                        self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).median()
+                    elif reducer == 'mean':
+                        self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).mean()
+                    elif reducer == 'sd':
+                        self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).std()
+                    else:
+                        raise Exception("The selected reducer is not supported. Please use one of: " + supportedReducers)
+
             if processName == 'power':
                 dim = node.arguments['base']
                 if isinstance(node.arguments['base'],float) or isinstance(node.arguments['base'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
@@ -730,7 +748,15 @@ class OpenEO():
                 else:
                     raise Exception("[!] No spatial extent provided in filter_bbox !")
                     return
-                transformer = Transformer.from_crs("epsg:" + source_crs, "epsg:"+str(self.partialResults[source].spatial_ref.values))
+                try:
+                    input_crs = str(self.partialResults[source].spatial_ref.values)
+                except:
+                    try:
+                        input_crs = str(self.partialResults[source].spatial_ref)
+                    except:
+                        raise Exception("[!] Not possible to estimate the input data projection!")
+                        return
+                transformer = Transformer.from_crs("epsg:" + source_crs, "epsg:"+input_crs)
                 
                 x_t = []
                 y_t = []
@@ -843,7 +869,7 @@ class OpenEO():
                             # TODO: check if the timesteps are the same, if yes use overlap resolver
                             cube1_time = self.partialResults[cube1].time.values
                             cube2_time = self.partialResults[cube2].time.values
-                            if (cube1_time == cube2_time).all():
+                            if (cube1_time == cube2_time):
                                 #Overlap resolver required
                                 print("Overlap resolver required")
                                 if 'overlap_resolver' in node.arguments:
@@ -856,15 +882,37 @@ class OpenEO():
                                     raise Exception(OverlapResolverMissing)
                             ## TODO: Case when only some timesteps are the same
                             ## TODO: Case when no timesteps are in common
-                        else:
-                            # We have only x,y (or maybe only x or only y)
-                            print("We have only x,y (or maybe only x or only y)")
-                            # Overlap resolver required
-                            if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
-                                source = node.arguments['overlap_resolver']['from_node']
-                                self.partialResults[node.id] = self.partialResults[source]
                             else:
-                                raise Exception(OverlapResolverMissing)
+                                try:
+                                    ds1 = self.partialResults[cube1]
+                                    ds2 = self.partialResults[cube2]
+                                    self.partialResults[node.id] = xr.concat([ds1,ds2],dim='time')
+                                except Exception as e:
+                                    raise e
+                        if 't' in cube1_dims:
+                            # TODO: check if the timesteps are the same, if yes use overlap resolver
+                            cube1_time = self.partialResults[cube1].t.values
+                            cube2_time = self.partialResults[cube2].t.values
+                            if (cube1_time == cube2_time):
+                                #Overlap resolver required
+                                print("Overlap resolver required")
+                                if 'overlap_resolver' in node.arguments:
+                                    try:
+                                        source = node.arguments['overlap_resolver']['from_node']
+                                        self.partialResults[node.id] = self.partialResults[source]
+                                    except:
+                                        raise Exception(OverlapResolverMissing)
+                                else:
+                                    raise Exception(OverlapResolverMissing)
+                            ## TODO: Case when only some timesteps are the same
+                            ## TODO: Case when no timesteps are in common
+                            else:
+                                try:
+                                    ds1 = self.partialResults[cube1]
+                                    ds2 = self.partialResults[cube2]
+                                    self.partialResults[node.id] = xr.concat([ds1,ds2],dim='t')
+                                except Exception as e:
+                                    raise e
                 else:
                     # CASE x,y,t + x,y (requires overlap resolver)
                     if 'time' in cube1_dims or 'time' in cube2_dims:
@@ -1271,6 +1319,8 @@ class OpenEO():
                     index = np.nonzero(y) # We don't consider zero values (masked) for fitting.
                     x = x[index]
                     y = y[index]
+                    if len(x)<12:
+                        return np.array([0,0,0])
                     popt, pcov = curve_fit(fitting_function, x, y)
                     return popt
                 
