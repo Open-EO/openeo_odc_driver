@@ -304,7 +304,7 @@ class OpenEO():
                             except Exception as e:
                                 raise e
                 elif processName == 'divide':
-                    if y==0:
+                    if (isinstance(y,int) or isinstance(y,float)) and y==0:
                         raise Exception(DivisionByZero)
                     else:
                         try:
