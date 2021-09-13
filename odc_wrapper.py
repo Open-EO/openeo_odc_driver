@@ -78,7 +78,7 @@ class Odc:
                 self.query['resampling'] = self.resamplingMethod
         
         try:
-            self.data = self.dc.load(datasets=datasets,**self.query)
+            self.data = self.dc.load(datasets=datasets,**self.query).astype(np.float32)
         except Exception as e:
             print(e)
             if (str(e)=='Product has no default CRS. Must specify \'output_crs\' and \'resolution\''):
