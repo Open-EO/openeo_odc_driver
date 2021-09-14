@@ -39,7 +39,7 @@ def process_graph():
         eo = OpenEO(jsonGraph)
         return send_file(eo.tmpFolderPath + "/output"+eo.outFormat, as_attachment=True, attachment_filename='output'+eo.outFormat)
     except Exception as e:
-        return error500("ODC back-end failed processing! \n" + str(e))
+        return error500("ODC engine error in process: " + str(e))
 
 @app.route('/collections', methods=['GET'])
 def list_collections():
@@ -156,11 +156,6 @@ def construct_stac_collection(collectionName):
     stacCollection['cube:dimensions']['Y']['axis'] = 'y'
     stacCollection['cube:dimensions']['Y']['extent'] = [stacCollection['extent']['spatial']['bbox'][0][1],stacCollection['extent']['spatial']['bbox'][0][3]]
 
-    if metadata is not None:
-        if 'crs' in metadata.keys():
-            stacCollection['cube:dimensions']['X']['reference_system'] = metadata['crs']
-            stacCollection['cube:dimensions']['Y']['reference_system'] = metadata['crs']
-
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName + "/items")
     items = res.json()
 
@@ -176,9 +171,14 @@ def construct_stac_collection(collectionName):
                 stacCollection['cube:dimensions']['Y']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
             except Exception as e:
                 print(e)
-    except Exception as e:
-        print(e)
+    except:
+        pass
 
+    if metadata is not None:
+        if 'crs' in metadata.keys():
+            stacCollection['cube:dimensions']['X']['reference_system'] = metadata['crs']
+            stacCollection['cube:dimensions']['Y']['reference_system'] = metadata['crs']
+    
     ### BANDS FROM DATACUBE-EXPLORER
     keys = items['features'][0]['assets'].keys()
     list_keys = list(keys)
