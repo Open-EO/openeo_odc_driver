@@ -37,7 +37,13 @@ def process_graph():
     jsonGraph = request.json
     try:
         eo = OpenEO(jsonGraph)
-        return send_file(eo.tmpFolderPath + "/output"+eo.outFormat, as_attachment=True, attachment_filename='output'+eo.outFormat)
+        if eo.returnFile:
+            return send_file(eo.tmpFolderPath + "/output"+eo.outFormat, as_attachment=True, attachment_filename='output'+eo.outFormat)
+            print("OUTPUT FILE: ",eo.tmpFolderPath + "/output"+eo.outFormat)
+        else:
+            return jsonify({"output":eo.tmpFolderPath})
+            print("OUTPUT FILE: ",eo.tmpFolderPath)
+
     except Exception as e:
         return error500("ODC engine error in process: " + str(e))
 

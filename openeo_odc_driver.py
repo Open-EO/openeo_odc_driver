@@ -60,6 +60,7 @@ class OpenEO():
         self.bands = None
         self.graph = translate_process_graph(jsonProcessGraph,process_defs=OPENEO_PROCESSES).sort(by='result')
         self.outFormat = None
+        self.returnFile = True
         self.mimeType = None
         self.i = 0
         if self.jobId == "None":
@@ -1516,9 +1517,25 @@ class OpenEO():
                     if 'options' in node.arguments:
                         if 'dtype' in node.arguments['options']:
                             self.partialResults[source] = self.partialResults[source].astype(node.arguments['options']['dtype'])
-
+                        if 'path' in node.arguments['options']:
+                            outputFile = node.arguments['options']['path']
+                            outputFolder = ""
+                            for i in range(1,len(outputFile.split('/'))-1):
+                                outputFolder += '/' + outputFile.split('/')[i]
+                            if 'mnt' not in outputFolder:
+                                raise Exception("[!] Provided output path is not valid!")
+                            if os.path.exists(outputFolder):
+                                self.tmpFolderPath = outputFile
+                                print("New folder ", self.tmpFolderPath)
+                                self.returnFile = False
+                            else:
+                                raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
+                    print("RETURN FILE? ",self.returnFile)
                     if 'params' in self.partialResults[source].dims:
-                        self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
+                        if self.returnFile:
+                            self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
+                        else:
+                            self.partialResults[source].to_netcdf(self.tmpFolderPath)
                         return
 #                     print('refactor_data')
 #                     tmp = self.refactor_data(self.partialResults[source])
@@ -1526,14 +1543,21 @@ class OpenEO():
 #                     tmp.attrs = self.partialResults[source].attrs
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
-                        tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
+                        if self.returnFile:
+                            tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
+                        else:
+                            tmp.to_netcdf(self.tmpFolderPath)
+                        return
                     except Exception as e:
                         print(e)
                         print("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
                         tmp.time.attrs.pop('units', None)
-                        tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
+                        if self.returnFile:
+                            tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
+                        else:
+                            tmp.to_netcdf(self.tmpFolderPath)
                     except Exception as e:
                         print(e)
                         print("Wrtiting netcdf failed!")
