@@ -1014,7 +1014,7 @@ class OpenEO():
                 if 'replacement' in node.arguments and node.arguments['replacement'] is not None:
                         burnValue  = node.arguments['replacement']
                         if isinstance(burnValue,int) or isinstance(burnValue,float):
-                        self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
+                            self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue) #Replace the na with the burnValue
             
             if processName == 'climatological_normal':
                 source             = node.arguments['data']['from_node']
