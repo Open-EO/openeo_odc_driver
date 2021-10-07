@@ -253,7 +253,11 @@ class OpenEO():
                             tmp = sourceCube.loc[dict(time=nearT)]
                         else:
                             tmp = xr.concat([tmp,sourceCube.loc[dict(time=nearT)]], dim='time')
-                    tmp['time'] = targetCube.time
+                    if 'time' in tmp.dims:
+                        tmp['time'] = targetCube.time
+                    else:
+                        tmp = tmp.expand_dims('time')
+                        tmp['time'] = targetCube.time.values
                     return tmp
                 self.partialResults[node.id] = resample_temporal(self.partialResults[source],self.partialResults[target])
 
@@ -372,7 +376,7 @@ class OpenEO():
                     source = node.arguments['data']['from_node']
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').sum()
-                elif parent.content['process_id'] == 'aggregate_temporal_period':
+                elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'sum' # Don't do anything, apply the sum later after aggregation
                 else:
                     x = 0
@@ -394,7 +398,7 @@ class OpenEO():
                     source = node.arguments['data']['from_node']
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').prod()
-                elif parent.content['process_id'] == 'aggregate_temporal_period':
+                elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'product' # Don't do anything, apply the prod later after aggregation
                 else:
                     x = 0
@@ -465,6 +469,10 @@ class OpenEO():
                 source = node.arguments['reducer']['from_node']
                 self.partialResults[node.id] = self.partialResults[source]
 
+            if processName == 'aggregate_spatial':
+                source = node.arguments['reducer']['from_node']
+                self.partialResults[node.id] = self.partialResults[source]
+
             if processName == 'max':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the max
                 if 'from_node' in node.arguments['data']:
@@ -476,7 +484,7 @@ class OpenEO():
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').max()
-                elif parent.content['process_id'] == 'aggregate_temporal_period':
+                elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'max' # Don't do anything, apply the max later after aggregation
                 else:
                     dim = parent.dimension
@@ -504,7 +512,7 @@ class OpenEO():
                     xDim, yDim = parent.content['arguments']['size']
                     ## TODO get pad, trim parameter from arguments
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').min()
-                elif parent.content['process_id'] == 'aggregate_temporal_period':
+                elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'min' # Don't do anything, apply the min later after aggregation
                 else:
                     dim = parent.dimension
@@ -532,7 +540,7 @@ class OpenEO():
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').mean()
-                elif parent.content['process_id'] == 'aggregate_temporal_period':
+                elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'mean' # Don't do anything, apply the mean later after aggregation
                 else:
                     dim = parent.dimension
@@ -560,7 +568,7 @@ class OpenEO():
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').median()
-                elif parent.content['process_id'] == 'aggregate_temporal_period':
+                elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'median' # Don't do anything, apply the median later after aggregation
                 else:
                     dim = parent.dimension
@@ -587,7 +595,7 @@ class OpenEO():
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').std()
-                elif parent.content['process_id'] == 'aggregate_temporal_period':
+                elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'sd' # Don't do anything, apply the std later after aggregation
                 else:
                     dim = parent.dimension
@@ -604,10 +612,8 @@ class OpenEO():
                         print('[!] Dimension {} not available in the current data.'.format(dim))
             
             if processName == 'aggregate_temporal_period':
-                print(node.arguments)
                 source = node.arguments['data']['from_node']
                 reducer = self.partialResults[node.arguments['reducer']['from_node']]
-                print(reducer)
                 #{'context': '', 'period': 'day', 'reducer': {'from_node': '1_2'}, 'data': {'from_node': '1_0'}, 'dimension': ''}
                 period = node.arguments['period']
                 #     hour: Hour of the day
@@ -627,7 +633,6 @@ class OpenEO():
                     raise Exception("The selected period " + period + " is not currently supported. Please use one of: " + list(periodDict.keys()))
                 
                 xarrayPeriod = str(periodDict[period])
-                print(xarrayPeriod)
                 supportedReducers = ['sum','product','min','max','median','mean','sd']
                 try:
                     if reducer == 'sum':
@@ -646,7 +651,8 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].resample(time=xarrayPeriod).std()
                     else:
                         raise Exception("The selected reducer is not supported. Please use one of: " + supportedReducers)
-                except:
+                except Exception as e:
+                    print(e)
                     if reducer == 'sum':
                         self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).sum()
                     elif reducer == 'product':
@@ -662,8 +668,8 @@ class OpenEO():
                     elif reducer == 'sd':
                         self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).std()
                     else:
-                        raise Exception("The selected reducer is not supported. Please use one of: " + supportedReducers)
-
+                        raise Exception("The selected reducer is not supported. Please use one of: " + supportedReducers)  
+                        
             if processName == 'power':
                 dim = node.arguments['base']
                 if isinstance(node.arguments['base'],float) or isinstance(node.arguments['base'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
@@ -732,7 +738,7 @@ class OpenEO():
                 bandsToKeep = node.arguments['bands']
                 source = node.arguments['data']['from_node']
                 self.partialResults[node.id]  = self.partialResults[source].loc[dict(variable=bandsToKeep)]
-            
+
             if processName == 'filter_bbox':
                 source = node.arguments['data']['from_node']
                 bbox_4326 = node.arguments['extent']
@@ -744,7 +750,7 @@ class OpenEO():
                     if "crs" in bbox_4326 and bbox_4326["crs"] is not None:
                         source_crs = bbox_4326["crs"]
                     else:
-                        source_crs = "4326"
+                        source_crs = 4326
                 else:
                     raise Exception("[!] No spatial extent provided in filter_bbox !")
                     return
@@ -757,6 +763,7 @@ class OpenEO():
                         raise Exception("[!] Not possible to estimate the input data projection!")
                         return
                 transformer = Transformer.from_crs("epsg:" + source_crs, "epsg:"+input_crs)
+                transformer = Transformer.from_crs("epsg:" + str(source_crs), "epsg:"+input_crs)
                 
                 x_t = []
                 y_t = []
@@ -774,6 +781,8 @@ class OpenEO():
                 y_max = y_t.max()
                 
                 self.partialResults[node.id] = self.partialResults[source].loc[dict(x=slice(x_min,x_max),y=slice(y_max,y_min))]
+                if len(self.partialResults[node.id].y) == 0:
+                    self.partialResults[node.id] = self.partialResults[source].loc[dict(x=slice(x_min,x_max),y=slice(y_min,y_max))]
                 
             if processName == 'rename_labels':
                 source = node.arguments['data']['from_node']
@@ -913,6 +922,15 @@ class OpenEO():
                                     self.partialResults[node.id] = xr.concat([ds1,ds2],dim='t')
                                 except Exception as e:
                                     raise e
+                        else:
+                            # We have only x,y (or maybe only x or only y)
+                            print("We have only x,y (or maybe only x or only y)")
+                            # Overlap resolver required
+                            if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
+                                source = node.arguments['overlap_resolver']['from_node']
+                                self.partialResults[node.id] = self.partialResults[source]
+                            else:
+                                raise Exception(OverlapResolverMissing)
                 else:
                     # CASE x,y,t + x,y (requires overlap resolver)
                     if 'time' in cube1_dims or 'time' in cube2_dims:
@@ -965,7 +983,7 @@ class OpenEO():
             if processName == 'apply':
                 source = node.arguments['process']['from_node']
                 self.partialResults[node.id] = self.partialResults[source]
-                
+
             if processName == 'apply_dimension':
                 source = node.arguments['process']['from_node']
                 self.partialResults[node.id] = self.partialResults[source]
@@ -995,6 +1013,7 @@ class OpenEO():
                 self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(mask))
                 if 'replacement' in node.arguments and node.arguments['replacement'] is not None:
                         burnValue  = node.arguments['replacement']
+                        if isinstance(burnValue,int) or isinstance(burnValue,float):
                         self.partialResults[node.id] = self.partialResults[node.id].fillna(burnValue)
             
             if processName == 'climatological_normal':
@@ -1363,9 +1382,6 @@ class OpenEO():
                 fitFun = build_fitting_functions()
                 print(fitFun)
                 exec(fitFun,globals())
-                print(data.dims)
-                print('variable' in data.dims)
-                print(data['variable'])
                 if 'variable' in data.dims:
                     predictedData = xr.Dataset(coords={'time':dates,'y':data.y,'x':data.x})
                     for var in data['variable'].values:
@@ -1387,11 +1403,18 @@ class OpenEO():
                 self.partialResults[node.id] = predictedData.to_array().transpose('variable','time','y','x')
                 
             if processName == 'load_result':
-                try:
-                    # If the data is has a single band we load it directly as xarray.DataArray, otherwise as Dataset and convert to DataArray
-                    self.partialResults[node.id] = xr.open_dataarray(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={})
-                except:
-                    self.partialResults[node.id] = xr.open_dataset(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={}).to_array()
+                from os.path import exists
+                print(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc')
+                if exists(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc'):
+                    try:
+                        # If the data is has a single band we load it directly as xarray.DataArray, otherwise as Dataset and convert to DataArray
+                        self.partialResults[node.id] = xr.open_dataarray(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={})
+                    except:
+                        print("Except")
+                        self.partialResults[node.id] = xr.open_dataset(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={}).to_array()
+                else:
+                    raise Exception("[!] Result of job " + node.arguments['id'] + " not found! It must be a netCDF file.")
+                print(self.partialResults[node.id])
                 
             if processName == 'save_result':
                 outFormat = node.arguments['format']
@@ -1489,21 +1512,31 @@ class OpenEO():
                 if outFormat.lower() in ['netcdf','nc']:
                     self.outFormat = '.nc'
                     self.mimeType = 'application/octet-stream'
+                    print(node.arguments)
+                    if 'options' in node.arguments:
+                        if 'dtype' in node.arguments['options']:
+                            self.partialResults[source] = self.partialResults[source].astype(node.arguments['options']['dtype'])
+
                     if 'params' in self.partialResults[source].dims:
                         self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
                         return
-                    
-                    tmp = self.refactor_data(self.partialResults[source])
-                    tmp.attrs = self.partialResults[source].attrs
-    #                 self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
+#                     print('refactor_data')
+#                     tmp = self.refactor_data(self.partialResults[source])
+                    tmp = self.partialResults[source]
+#                     tmp.attrs = self.partialResults[source].attrs
+#                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
                         tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
-                    except:
+                    except Exception as e:
+                        print(e)
+                        print("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
-                        tmp.t.attrs.pop('units', None)
+                        tmp.time.attrs.pop('units', None)
                         tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
-                    except:
+                    except Exception as e:
+                        print(e)
+                        print("Wrtiting netcdf failed!")
                         pass
                     return 
                 
