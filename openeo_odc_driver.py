@@ -98,6 +98,7 @@ class OpenEO():
                 bands            = None # List of bands
                 resolutions      = None # Tuple
                 outputCrs        = None
+                crs              = None
                 resamplingMethod = None
                 polygon          = None
                 if 'bands' in node.arguments:
@@ -119,14 +120,17 @@ class OpenEO():
                        'north' in node.arguments['spatial_extent'] and \
                        'east'  in node.arguments['spatial_extent'] and \
                        'west'  in node.arguments['spatial_extent']:
-                        lowLat     = node.arguments['spatial_extent']['south']
-                        highLat    = node.arguments['spatial_extent']['north']
-                        lowLon     = node.arguments['spatial_extent']['east']
-                        highLon    = node.arguments['spatial_extent']['west']
+                        south     = node.arguments['spatial_extent']['south'] #lowLat
+                        north    = node.arguments['spatial_extent']['north'] #highLat
+                        east     = node.arguments['spatial_extent']['east'] #lowLon
+                        west    = node.arguments['spatial_extent']['west'] #highLon
 
                     elif 'coordinates' in node.arguments['spatial_extent']:
                         # Pass coordinates to odc and process them there
                         polygon = node.arguments['spatial_extent']['coordinates']
+                        
+                    if 'crs' in node.arguments['spatial_extent'] and node.arguments['spatial_extent']['crs'] is not None:
+                        crs = node.arguments['spatial_extent']['crs']
 
                 for n in self.graph: # Let's look for resample_spatial nodes
                     parentID = 0
@@ -157,7 +161,7 @@ class OpenEO():
                             if 'method' in n.arguments:
                                 resamplingMethod = n.arguments['method']
 
-                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=bands,lowLat=lowLat,highLat=highLat,lowLon=lowLon,highLon=highLon,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod)
+                odc = Odc(collections=collection,timeStart=timeStart,timeEnd=timeEnd,bands=bands,south=south,north=north,west=west,east=east,resolutions=resolutions,outputCrs=outputCrs,polygon=polygon,resamplingMethod=resamplingMethod,crs=crs)
                 if len(odc.data) == 0:
                     raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
                 self.partialResults[node.id] = odc.data.to_array()
@@ -717,10 +721,11 @@ class OpenEO():
                     outputMin = node.arguments['min']
                 try:
                     tmp = self.partialResults[source].clip(outputMin,outputMax)
+                    print("[!] DASK CLIP FAILED, COMPUTING VALUES AND TRYING AGAIN")
                 except:
                     try:
                         tmp = self.partialResults[source].compute()
-                        tmp = tmp.fillna(0).clip(outputMin,outputMax).chunk()
+                        tmp = tmp.fillna(0).clip(outputMin,outputMax).chunk(chunks={"time":-1,"x": 1000, "y":1000})
                     except Exception as e:
                         raise e
                 self.partialResults[node.id] = tmp
@@ -1316,7 +1321,8 @@ class OpenEO():
                 ## The fitting function as been converted in a dedicated if statement into a string
                 fitFunction = self.partialResults[node.arguments['function']['from_node']]
                 ## The data can't contain NaN values, they are replaced with zeros
-                data = self.partialResults[node.arguments['data']['from_node']].compute().fillna(0)
+#                 data = self.partialResults[node.arguments['data']['from_node']].compute().fillna(0)
+                data = self.partialResults[node.arguments['data']['from_node']].fillna(0)
                 data_dataset = self.refactor_data(data)
                 data_dataset = data_dataset.rename({'t':'time'})
                 baseParameters = node.arguments['parameters'] ## TODO: take care of them, currently ignored

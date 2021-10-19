@@ -18,23 +18,23 @@ import dea_tools.datahandling  # or some other submodule
 from config import *
 
 class Odc:
-    def __init__(self,collections=None,timeStart=None,timeEnd=None,lowLat=None,\
-                 highLat=None,lowLon=None,highLon=None,bands=None,resolutions=None,outputCrs=None,polygon=None,resamplingMethod=None):
+    def __init__(self,collections=None,timeStart=None,timeEnd=None,south=None,north=None,west=None,east=None,bands=None,resolutions=None,outputCrs=None,polygon=None,resamplingMethod=None,crs=None):
 
         self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
         self.collections = collections
         self.timeStart   = timeStart
         self.timeEnd     = self.exclusive_date(timeEnd)
-        self.lowLat      = lowLat
-        self.highLat     = highLat
-        self.lowLon      = lowLon
-        self.highLon     = highLon
+        self.south       = south
+        self.north       = north
+        self.west        = west
+        self.east        = east
         self.bands       = bands
         self.resolutions = resolutions
         self.outputCrs   = outputCrs
         self.resamplingMethod = resamplingMethod
         self.polygon     = polygon
         self.geoms       = None
+        self.crs         = crs
         self.data        = None
         self.query       = None
         self.build_query()
@@ -58,9 +58,16 @@ class Odc:
             #geom = Geometry(geom=self.polygon, crs=crs)
             #query['geopolygon'] = geom
             self.get_bbox()
-        if (self.lowLat is not None and self.highLat is not None and self.lowLon is not None and self.highLon is not None and not self.sar2cube_collection()):
-            query['latitude']  = (self.lowLat,self.highLat)
-            query['longitude'] = (self.lowLon,self.highLon)
+        if (self.south is not None and self.north is not None and self.east is not None and self.west is not None and not self.sar2cube_collection()):
+            if self.crs is not None:
+                query['crs']  = 'epsg:' + str(self.crs)
+                query['x']  = (self.south,self.north)
+                query['y'] = (self.east,self.west)
+                query['output_crs'] = 'epsg:' + str(self.crs)
+                query['resolution'] = [10,10]
+            else:
+                query['latitude']  = (self.south,self.north)
+                query['longitude'] = (self.east,self.west)
         if self.resolutions is not None:
             query['resolution'] = self.resolutions
         if self.outputCrs  is not None:
@@ -69,7 +76,7 @@ class Odc:
         
     def load_collection(self):
         datasets  = self.dc.find_datasets(time=(self.timeStart,self.timeEnd),**self.query)
-        self.query['dask_chunks'] = {"x": 2000, "y":2000}             # This let us load the data as Dask chunks instead of numpy arrays
+        self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}             # This let us load the data as Dask chunks instead of numpy arrays
         if self.resamplingMethod  is not None:
             if self.resamplingMethod == 'near':
                 self.query['resampling'] = 'nearest'
@@ -87,15 +94,17 @@ class Odc:
                 crs_query.pop('product')
                 crs_query.pop('dask_chunks')
                 output_crs = dea_tools.datahandling.mostcommon_crs(dc=self.dc, product=self.collections, query=crs_query)
+                print(output_crs)
                 self.query['output_crs'] = output_crs
                 self.query['resolution'] = [10,10]
+                self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}
                 self.data = self.dc.load(datasets=datasets,**self.query)
             else:
                 raise Exception(str(e))
 
             
-        if (self.sar2cube_collection() and self.lowLat is not None and self.highLat is not None and self.lowLon is not None and self.highLon is not None):
-            bbox = [self.highLon,self.lowLat,self.lowLon,self.highLat]
+        if (self.sar2cube_collection() and self.south is not None and self.north is not None and self.east is not None and self.west is not None):
+            bbox = [self.west,self.south,self.east,self.north]
             bbox_mask = np.bitwise_and(np.bitwise_and(self.data.grid_lon[0]>bbox[0],self.data.grid_lon[0]<bbox[2]),np.bitwise_and(self.data.grid_lat[0]>bbox[1],self.data.grid_lat[0]<bbox[3]))
             self.data = self.data.where(bbox_mask,drop=True)
 
@@ -125,10 +134,10 @@ class Odc:
         return geoms    
     
     def get_bbox(self):
-        self.lowLat      = np.min([[el[1] for el in self.polygon[0]]])
-        self.highLat     = np.max([[el[1] for el in self.polygon[0]]])
-        self.lowLon      = np.min([[el[0] for el in self.polygon[0]]])
-        self.highLon     = np.max([[el[0] for el in self.polygon[0]]])
+        self.south      = np.min([[el[1] for el in self.polygon[0]]])
+        self.north      = np.max([[el[1] for el in self.polygon[0]]])
+        self.east      = np.min([[el[0] for el in self.polygon[0]]])
+        self.west     = np.max([[el[0] for el in self.polygon[0]]])
         return
     
     def apply_mask(self):
