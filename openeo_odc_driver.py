@@ -91,10 +91,10 @@ class OpenEO():
                 timeStart        = defaultTimeStart
                 timeEnd          = defaultTimeEnd
                 collection       = None
-                lowLat           = None
-                highLat          = None
-                lowLon           = None
-                highLon          = None
+                south            = None
+                north            = None
+                east             = None
+                west             = None
                 bands            = None # List of bands
                 resolutions      = None # Tuple
                 outputCrs        = None
