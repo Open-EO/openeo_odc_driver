@@ -76,8 +76,8 @@ class OpenEO():
                 for i in range(0,len(self.graph)+1):
                     if not self.process_node(i):
                         print('[*] Processing finished!')
-                print('[*] Elaspsed time: ', time() - start)
-                break
+                        print('[*] Elaspsed time: ', time() - start)
+                        break
 
     def process_node(self,i):
         node = self.graph[i]
