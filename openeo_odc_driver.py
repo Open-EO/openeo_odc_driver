@@ -30,7 +30,7 @@ import rioxarray
 import pandas as pd
 # Parallel Computing
 import dask
-from dask.distributed import Client
+from dask.distributed import Scheduler, Worker, Client, LocalCluster
 from dask import delayed
 # openEO & SAR2Cube specific
 from openeo_pg_parser.translate import translate_process_graph
