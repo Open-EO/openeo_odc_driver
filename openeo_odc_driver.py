@@ -42,10 +42,6 @@ try:
 except:
     pass
 
-client = Client(DASK_SCHEDULER_ADDRESS)
-print('DASK: ',client)
-print('DASBOARD: ',client.dashboard_link)
-
 class OpenEO():
     def __init__(self,jsonProcessGraph):
         self.jsonProcessGraph = jsonProcessGraph
@@ -74,9 +70,12 @@ class OpenEO():
         except:
             pass
         start = time()
-        for i in range(0,len(self.graph)+1):
-            if not self.process_node(i):
-                print('[*] Processing finished!')
+        
+        with LocalCluster(n_workers=16, threads_per_worker=4, processes=True,memory_limit='10GB') as cluster:
+            with Client(cluster) as client:
+                for i in range(0,len(self.graph)+1):
+                    if not self.process_node(i):
+                        print('[*] Processing finished!')
                 print('[*] Elaspsed time: ', time() - start)
                 break
 
