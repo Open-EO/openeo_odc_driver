@@ -1099,7 +1099,7 @@ class OpenEO():
                     self.partialResults[source].loc[dict(variable='grid_lon')]
                     self.partialResults[source].loc[dict(variable='grid_lat')]
                     if len(self.partialResults[source].dims) >= 3:
-                        if len(self.partialResults[source].time)>=1 and len(self.partialResults[source].loc[dict(variable='grid_lon')].dims)>2:
+                        if 'time' in self.partialResults[source].dims and len(self.partialResults[source].loc[dict(variable='grid_lon')].dims)>2:
                             grid_lon = self.partialResults[source].loc[dict(variable='grid_lon',time=self.partialResults[source].time[0])].values
                             grid_lat = self.partialResults[source].loc[dict(variable='grid_lat',time=self.partialResults[source].time[0])].values
                         else:
