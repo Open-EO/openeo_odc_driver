@@ -950,7 +950,11 @@ class OpenEO():
                                     else:
                                         raise Exception(OverlapResolverMissing)
                                 else:
-                                    raise Exception("[!] Trying to merge two datacubes with different dimensions, not supported yet!")
+                                    cube1 = node.arguments['cube1']['from_node']
+                                    cube2 = node.arguments['cube2']['from_node']
+                                    ds1 = self.partialResults[cube1]
+                                    ds2 = self.partialResults[cube2]
+                                    self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
                     else:
                         cube1 = node.arguments['cube1']['from_node']
                         cube2 = node.arguments['cube2']['from_node']
