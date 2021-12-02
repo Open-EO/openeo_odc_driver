@@ -1257,8 +1257,8 @@ class OpenEO():
                 #shadowing
                 shadow      = np.bitwise_and(res_out_f_deg  < 0,np.abs(res_out_f_deg) > (90-mean_incAngle)).astype(np.float32)
                 radar_mask = ((foreshorteningMask + layover + shadow) > 1).astype(np.float32)
-                self.partialResults[node.id] = src
-                self.partialResults[node.id]['mask'] = radar_mask
+                self.partialResults[node.id] = xr.ones_like(src.loc[dict(variable='DEM')]) * radar_mask
+
 
             if processName == 'coherence':
                 #{'data': {'from_node': '1_0'}, 'timedelta': '6 days'}
