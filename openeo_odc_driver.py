@@ -1313,8 +1313,9 @@ class OpenEO():
 
                 tmp_dataset_timeseries = None
                 for i,t in enumerate(timesteps[:-1]):
-                    if(np.timedelta64(timesteps[i+1] - timesteps[i], 'D')) == np.timedelta64(timedelta,'D'):
-                        days_pairs.append([timesteps[i],timesteps[i+1]])
+                    for t2 in timesteps[i+1:-1]:
+                        if(np.timedelta64(t2 - t, 'D')) == np.timedelta64(timedelta,'D'):
+                            days_pairs.append([t,t2])
                 
                 src = self.partialResults[source]
                 for i,pair in enumerate(days_pairs):
