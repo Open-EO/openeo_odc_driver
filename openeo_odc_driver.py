@@ -386,7 +386,7 @@ class OpenEO():
                 elif processName == 'neq':
                     self.partialResults[node.id] = x != y       
                 elif processName == 'log':
-                    base = float(node.arguments['x'])
+                    base = float(node.arguments['base'])
                     if isinstance(x,float) or isinstance(x,int):
                         self.partialResults[node.id] = np.log(x)/np.log(base)
                     else:    
