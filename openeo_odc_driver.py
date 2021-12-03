@@ -288,7 +288,7 @@ class OpenEO():
                     return tmp
                 self.partialResults[node.id] = resample_temporal(self.partialResults[source],self.partialResults[target])
 
-            if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte','eq','neq']:
+            if processName in ['multiply','divide','subtract','add','lt','lte','gt','gte','eq','neq','log','ln']:
                 x = None
                 y = None
                 source = None
@@ -385,6 +385,17 @@ class OpenEO():
                     self.partialResults[node.id] = x == y
                 elif processName == 'neq':
                     self.partialResults[node.id] = x != y       
+                elif processName == 'log':
+                    base = float(node.arguments['x'])
+                    if isinstance(x,float) or isinstance(x,int):
+                        self.partialResults[node.id] = np.log(x)/np.log(base)
+                    else:    
+                        self.partialResults[node.id] = xr.ufuncs.log(x)/xr.ufuncs.log(base) 
+                elif processName == 'ln':
+                    if isinstance(x,float) or isinstance(x,int):
+                        self.partialResults[node.id] = np.ln(x)
+                    else:    
+                        self.partialResults[node.id] = xr.ufuncs.ln(x)
 
             if processName == 'not':
                 if isinstance(node.arguments['x'],float) or isinstance(node.arguments['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
