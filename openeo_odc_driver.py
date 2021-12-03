@@ -879,7 +879,7 @@ class OpenEO():
                         cube2_bands = self.partialResults[cube2]['variable'].values
                         # Simple case: same bands in both datacubes
                         logging.info("Simple case: same bands in both datacubes")
-                        if (cube1_bands == cube2_bands).all():
+                        if (cube1_bands == cube2_bands):
                             logging.info("We need to check if the timestep are different, if yes we can merge directly")
                             if (self.partialResults[cube1].time.values != self.partialResults[cube2].time.values).all():
                                 self.partialResults[node.id] = xr.concat([self.partialResults[cube1],self.partialResults[cube2]],dim='time')
@@ -1313,7 +1313,7 @@ class OpenEO():
 
                 tmp_dataset_timeseries = None
                 for i,t in enumerate(timesteps[:-1]):
-                    for t2 in timesteps[i+1:-1]:
+                    for t2 in timesteps[i+1:]:
                         if(np.timedelta64(t2 - t, 'D')) == np.timedelta64(timedelta,'D'):
                             days_pairs.append([t,t2])
                 
