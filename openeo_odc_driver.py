@@ -1299,18 +1299,10 @@ class OpenEO():
 
 
             if processName == 'coherence':
-                #{'data': {'from_node': '1_0'}, 'timedelta': '6 days'}
                 source = node.arguments['data']['from_node']
-                timedelta_str = None
                 timedelta = 6
                 if 'timedelta' in node.arguments:
-                    timedelta_str =  node.arguments['timedelta']
-                if timedelta_str=='12 days':
-                    timedelta = 12
-                elif timedelta_str=='24 days':
-                    timedelta = 24
-                elif timedelta_str=='48 days':
-                    timedelta = 48
+                    timedelta =  int(node.arguments['timedelta'])
                 else:
                     pass
                     
