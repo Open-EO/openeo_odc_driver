@@ -877,9 +877,16 @@ class OpenEO():
                         logging.info("We need to check if the bands are different or there are some common ones")
                         cube1_bands = self.partialResults[cube1]['variable'].values
                         cube2_bands = self.partialResults[cube2]['variable'].values
-                        # Simple case: same bands in both datacubes
-                        logging.info("Simple case: same bands in both datacubes")
-                        if (cube1_bands == cube2_bands):
+                        try:
+                            equal_bands = (cube1_bands == cube2_bands).all()
+                        except:
+                            try:
+                                equal_bands = (cube1_bands == cube2_bands)
+                            except:
+                                equal_bands = False
+                        if equal_bands:
+                            # Simple case: same bands in both datacubes
+                            logging.info("Simple case: same bands in both datacubes")
                             logging.info("We need to check if the timestep are different, if yes we can merge directly")
                             if (self.partialResults[cube1].time.values != self.partialResults[cube2].time.values).all():
                                 self.partialResults[node.id] = xr.concat([self.partialResults[cube1],self.partialResults[cube2]],dim='time')
