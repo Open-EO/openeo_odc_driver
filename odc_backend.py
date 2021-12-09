@@ -14,8 +14,17 @@ import requests
 import yaml
 import datacube
 from config import *
-
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("sar2cube_debug.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 def sar2cube_collection_extent(collectionName):
+    dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
     sar2cubeData = dc.load(product = collectionName, dask_chunks={'time':1,'x':2000,'y':2000})
     zero_lon_mask = sar2cubeData.grid_lon[0]!=0
     zero_lat_mask = sar2cubeData.grid_lat[0]!=0
@@ -49,13 +58,11 @@ def process_graph():
 @app.route('/collections', methods=['GET'])
 def list_collections():
     if USE_CACHED_COLLECTIONS:
-        try:
+        if os.path.isfile(ODC_COLLECTIONS_FILE):
             f = open(ODC_COLLECTIONS_FILE)
             with open(ODC_COLLECTIONS_FILE) as collection_list:
                 stacCollection = json.load(collection_list)
                 return jsonify(stacCollection)
-        except IOError:
-            pass
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/products.txt")
     datacubesList = res.text.split('\n')
     collections = {}
@@ -73,15 +80,12 @@ def list_collections():
 @app.route("/collections/<string:name>", methods=['GET'])
 def describe_collection(name):
     if USE_CACHED_COLLECTIONS:
-        try:
+        if os.path.isfile(METADATA_FOLDER + '/CACHE/' + name + '.json'):
             f = open(METADATA_FOLDER + '/CACHE/' + name + '.json')
-            # Do something with the file
             with open(METADATA_FOLDER + '/CACHE/' + name + '.json') as collection:
                 stacCollection = json.load(collection)
                 return jsonify(stacCollection)
-        except Exception as e:
-            pass
-    
+
     stacCollection = construct_stac_collection(name)
         
     return jsonify(stacCollection)
@@ -90,11 +94,9 @@ def construct_stac_collection(collectionName):
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName)
     stacCollection = res.json()
     metadata = None
-    try:
+    if os.path.isfile(METADATA_FOLDER + '/SUPP/' + collectionName + '_supp_metadata.json'):
         additional_metadata = open(METADATA_FOLDER + '/SUPP/' + collectionName + '_supp_metadata.json')
         metadata = json.load(additional_metadata)
-    except Exception as e:
-        print(e)
 
     stacCollection['stac_extensions'] = ['datacube']         
     stacCollection.pop('properties')
@@ -106,7 +108,8 @@ def construct_stac_collection(collectionName):
         try:
             sar2cubeBbox = sar2cube_collection_extent(collectionName)
             stacCollection['extent']['spatial']['bbox'] = [sar2cubeBbox]
-        except:
+        except Exceptions as e:
+            logging.error(e)
             pass
 
     ### SUPPLEMENTARY METADATA FROM FILE
@@ -144,6 +147,12 @@ def construct_stac_collection(collectionName):
                 stacCollection['summaries']['instruments']    = metadata['summaries']['instruments']
             if 'eo:cloud cover' in metadata['summaries']:
                 stacCollection['summaries']['eo:cloud cover'] = metadata['summaries']['eo:cloud cover']
+        if 'cube:dimensions' in metadata.keys():
+            if 'bands' in metadata['cube:dimensions'].keys():
+                if 'values' in metadata['cube:dimensions']['bands'].keys():
+                    stacCollection['cube:dimensions']['bands'] = {}
+                    stacCollection['cube:dimensions']['bands']['type'] = 'bands'
+                    stacCollection['cube:dimensions']['bands']['values'] = metadata['cube:dimensions']['bands']['values']
 
     ### SPATIAL AND TEMPORAL EXTENT FROM DATACUBE-EXPLORER
     stacCollection['cube:dimensions'] = {}
@@ -184,24 +193,26 @@ def construct_stac_collection(collectionName):
             stacCollection['cube:dimensions']['X']['reference_system'] = metadata['crs']
             stacCollection['cube:dimensions']['Y']['reference_system'] = metadata['crs']
     
-    ### BANDS FROM DATACUBE-EXPLORER
-    keys = items['features'][0]['assets'].keys()
-    list_keys = list(keys)
-    list_keys.remove('location')
+    ### BANDS FROM DATACUBE-EXPLORER IF NOT ALREADY PROVIDED IN THE SUPP METADATA
     bands_list = []
     try:
-        for key in list_keys:
-            if len(items['features'][0]['assets'][key]['eo:bands'])>1:
-                for b in items['features'][0]['assets'][key]['eo:bands']:
-                    bands_list.append(b)
-            else:
-                bands_list.append(items['features'][0]['assets'][key]['eo:bands'][0])
+        keys = items['features'][0]['assets'].keys()
+        list_keys = list(keys)
+        list_keys.remove('location')
+        try:
+            for key in list_keys:
+                if len(items['features'][0]['assets'][key]['eo:bands'])>1:
+                    for b in items['features'][0]['assets'][key]['eo:bands']:
+                        bands_list.append(b)
+                else:
+                    bands_list.append(items['features'][0]['assets'][key]['eo:bands'][0])
+            stacCollection['cube:dimensions']['bands'] = {}
+            stacCollection['cube:dimensions']['bands']['type'] = 'bands'
+            stacCollection['cube:dimensions']['bands']['values'] = bands_list
+        except Exception as e:
+            print(e)
     except Exception as e:
         print(e)
-
-    stacCollection['cube:dimensions']['bands'] = {}
-    stacCollection['cube:dimensions']['bands']['type'] = 'bands'
-    stacCollection['cube:dimensions']['bands']['values'] = bands_list
 
     with open(METADATA_FOLDER + '/CACHE/' + collectionName + '.json', 'w') as outfile:
         json.dump(stacCollection, outfile)
