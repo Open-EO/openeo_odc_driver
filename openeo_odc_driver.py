@@ -1246,7 +1246,6 @@ class OpenEO():
                                 geocoded_dataset[str(var.values)] = (("y", "x"),geocoded_data)
 
                     self.partialResults[node.id] = geocoded_dataset.to_array()
-                logging.info("Elapsed time: {}".format(str(time() - start)))
             
             if processName == 'radar_mask':
                 source = node.arguments['data']['from_node']
@@ -1577,7 +1576,6 @@ class OpenEO():
                                 self.returnFile = False
                             else:
                                 raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
-                    logging.info("RETURN FILE? ",self.returnFile)
                     if 'params' in self.partialResults[source].dims:
                         if self.returnFile:
                             self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")

@@ -16,14 +16,13 @@ import datacube
 from config import *
 
 def sar2cube_collection_extent(collectionName):
-    dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
     sar2cubeData = dc.load(product = collectionName, dask_chunks={'time':1,'x':2000,'y':2000})
-    zero_lon_mask = sar2cubeData.grid_lon[0]>0
-    zero_lat_mask = sar2cubeData.grid_lat[0]>0
+    zero_lon_mask = sar2cubeData.grid_lon[0]!=0
+    zero_lat_mask = sar2cubeData.grid_lat[0]!=0
     min_lon = sar2cubeData.grid_lon[0].where(zero_lon_mask).min().values.item(0)
     min_lat = sar2cubeData.grid_lat[0].where(zero_lat_mask).min().values.item(0)
-    max_lon = sar2cubeData.grid_lon[0].max().values.item(0)
-    max_lat = sar2cubeData.grid_lat[0].max().values.item(0)
+    max_lon = sar2cubeData.grid_lon[0].where(zero_lon_mask).max().values.item(0)
+    max_lat = sar2cubeData.grid_lat[0].where(zero_lat_mask).max().values.item(0)
     return [min_lon,min_lat,max_lon,max_lat]
 
 app = Flask('openeo_odc_driver')
