@@ -508,8 +508,42 @@ class OpenEO():
                 self.partialResults[node.id] = self.partialResults[source]
 
             if processName == 'aggregate_spatial':
-                source = node.arguments['reducer']['from_node']
-                self.partialResults[node.id] = self.partialResults[source]
+                source = node.arguments['data']['from_node']
+                gdf = gpd.GeoDataFrame.from_features(node.arguments['geometries']['features'])
+                ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
+                gdf = gdf.set_crs(4326)
+                gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))
+                target_dimension = 'result'
+                if 'target_dimension' in node.arguments:
+                    target_dimension = node.arguments['target_dimension']
+                ## First clip the data and keep only the data within the polygons
+                crop = self.partialResults[source].rio.clip(gdf_utm.geometry, drop=True)
+                reducer = self.partialResults[node.arguments['reducer']['from_node']]
+                tmp = None
+                ## Loop over the geometries in the FeatureCollection and apply the reducer
+                for i in range(len(gdf_utm)):
+                    if reducer == 'mean':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).mean(dim=['x','y'])
+                    elif reducer == 'min':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).min(dim=['x','y'])
+                    elif reducer == 'max':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).max(dim=['x','y'])
+                    elif reducer == 'median':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).median(dim=['x','y'])
+                    elif reducer == 'product':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).prod(dim=['x','y'])
+                    elif reducer == 'sum':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).sum(dim=['x','y'])
+                    elif reducer == 'sd':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).std(dim=['x','y'])
+                    elif reducer == 'variance':
+                        geom_crop = crop.rio.clip(gdf_utm.loc[[i]].geometry).std(dim=['x','y'])**2
+                    geom_crop[target_dimension] = i
+                    if tmp is not None:
+                        tmp = xr.concat([tmp,geom_crop],dim=target_dimension)
+                    else:
+                        tmp = geom_crop
+                self.partialResults[node.id] = tmp
 
             if processName == 'max':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the max
