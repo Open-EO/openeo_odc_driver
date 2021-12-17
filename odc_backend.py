@@ -108,7 +108,7 @@ def construct_stac_collection(collectionName):
         try:
             sar2cubeBbox = sar2cube_collection_extent(collectionName)
             stacCollection['extent']['spatial']['bbox'] = [sar2cubeBbox]
-        except Exceptions as e:
+        except Exception as e:
             logging.error(e)
             pass
 
