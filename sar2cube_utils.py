@@ -8,12 +8,14 @@ from scipy import spatial
 
 def check_S2grid(ulx, uly, lrx, lry,epsgout,spatialres):
     #Extract x,y reference coordinates for each zone
-    s2gridpath = './tabularize_s2_footprint_32632.csv'
+    s2gridpath = './tabularize_s2_footprint.csv'
     if not os.path.isfile(s2gridpath):
         print('Sentinel grid file not found in /RES')
         sys.exit()
         #load s2gridpath
     s2grid = pd.read_csv(s2gridpath, sep=',')
+    s2grid = s2grid.drop(np.where(s2grid.epsg != epsgout)[0])
+    s2grid = s2grid.reset_index()
     epsglist = set(s2grid['epsg'])
     #Extract unique zones
     s2grid['zone_ref'] = [Proj(s2grid['utm_zone'][i]).crs.utm_zone for i in range(len(s2grid))]
@@ -54,6 +56,7 @@ def create_S2grid(grid_lon,grid_lat,output_crs,spatialres):
     max_y = np.nanmax(grid_y_irregular)
     print('Irregular grid bounds: ',min_x, min_y, max_x, max_y)
     output_crs_int = int(output_crs.split(':')[1])
+    print("OUTPUT CRS: ",output_crs_int)
     ulxgrid, ulygrid, lrxgrid, lrygrid = check_S2grid(min_x, max_y, max_x, min_y,output_crs_int,spatialres)
     print('Aligned with S2 grid bounds: ',ulxgrid, lrygrid, lrxgrid, ulygrid)
     wout = int((lrxgrid - ulxgrid) / spatialres)
