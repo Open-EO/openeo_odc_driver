@@ -1183,6 +1183,7 @@ class OpenEO():
                     raise Exception("[!] The geocode process is missing the required resolution field.")
                 if 'crs' in node.arguments:
                     output_crs = "epsg:" + str(node.arguments['crs'])
+                    self.crs = node.arguments['crs']
                 else:
                     raise Exception("[!] The geocode process is missing the required crs field.")
                 if 'grid_lon' in self.partialResults[source]['variable'] and 'grid_lat' in self.partialResults[source]['variable']:
