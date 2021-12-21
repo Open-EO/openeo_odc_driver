@@ -1292,7 +1292,13 @@ class OpenEO():
                     self.partialResults[node.id] = geocoded_dataset.to_array()
             
             if processName == 'radar_mask':
-                source = node.arguments['data']['from_node']
+                parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
+                if 'from_node' in node.arguments['data']:
+                    source = node.arguments['data']['from_node']
+                elif 'from_parameter' in node.arguments['data']:
+                    source = node.parent_process.arguments['data']['from_node']
+                else:
+                    logging.info('ERROR')
                 threshold = node.arguments['threshold']
                 orbit = node.arguments['orbit']
                 
@@ -1337,15 +1343,25 @@ class OpenEO():
                 #foreshortening
                 foreshorteningTH   = float(threshold) # Foreshortening threshold
                 foreshortening     = np.bitwise_and(res_out_f_deg > 0,res_out_f_deg < mean_incAngle)*res_out_f_deg / mean_incAngle
-                foreshorteningMask = np.zeros((demdata.shape))
-                foreshorteningMask = (foreshortening > foreshorteningTH).astype(np.float32)
+                foreshortening_mask = np.zeros((demdata.shape))
+                foreshortening_mask = (foreshortening > foreshorteningTH).astype(np.float32)
                 #layover
                 layover        = np.bitwise_and(res_out_f_deg > 0,res_out_f_deg > mean_incAngle)*res_out_f_deg / mean_incAngle
-                layover_Mask   = (layover > 0).astype(np.float32)
+                layover_mask   = (layover > 0).astype(np.float32)
                 #shadowing
-                shadow      = np.bitwise_and(res_out_f_deg  < 0,np.abs(res_out_f_deg) > (90-mean_incAngle)).astype(np.float32)
-                radar_mask = ((foreshorteningMask + layover + shadow) > 1).astype(np.float32)
-                self.partialResults[node.id] = xr.ones_like(src.loc[dict(variable='DEM')]) * radar_mask
+                shadow_mask      = np.bitwise_and(res_out_f_deg  < 0,np.abs(res_out_f_deg) > (90-mean_incAngle)).astype(np.float32)
+                
+                # Combine the three masks into a single datacube
+                output = xr.ones_like(src.loc[dict(variable='DEM')]).drop('variable')
+                layover_mask_da = output * layover_mask
+                layover_mask_da['variable'] = 1
+                foreshortening_mask_da = output * foreshortening_mask
+                foreshortening_mask_da['variable'] = 2
+                shadow_mask_da = output * shadow_mask
+                shadow_mask_da['variable'] = 3
+                
+                self.partialResults[node.id] = xr.concat([layover_mask_da,foreshortening_mask_da,shadow_mask_da],dim='variable')
+                
 
 
             if processName == 'coherence':
