@@ -1292,16 +1292,25 @@ class OpenEO():
                     self.partialResults[node.id] = geocoded_dataset.to_array()
             
             if processName == 'radar_mask':
-                parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
+                parent = node.parent_process
                 if 'from_node' in node.arguments['data']:
                     source = node.arguments['data']['from_node']
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
-                threshold = node.arguments['threshold']
-                orbit = node.arguments['orbit']
+                    logging.error('ERROR')
                 
+                foreshortening_th = 0.2
+                layover_th        = 1.0
+                if 'foreshortening_th' in node.arguments and node.arguments['foreshortening_th'] is not None:
+                    foreshortening_th = float(node.arguments['foreshortening_th'])
+                if 'layover_th' in node.arguments and node.arguments['layover_th'] is not None:
+                    layover_th = float(node.arguments['layover_th'])
+                if 'orbit_direction' in node.arguments and node.arguments['orbit_direction'] is not None:
+                    orbit_direction = node.arguments['orbit_direction']
+                else:
+                    raise Exception("[!] You need to provide the orbit_direction parameter to compute the radar masks!")
+                    
                 src = self.partialResults[source]
                 samples_dem = len(src.loc[dict(variable='DEM')].x)
                 lines_dem   = len(src.loc[dict(variable='DEM')].y)
@@ -1313,7 +1322,7 @@ class OpenEO():
                 # DSC = +12.5°
                 # Convert to radians before the usage
                 heading = -12.5*np.pi/180 #ASC
-                if orbit == 'DSC':
+                if orbit_direction == 'DSC':
                     heading = 12.5*np.pi/180
                 dx_p=dx*np.tan(heading)
                 dy_p=dy*np.tan(heading)
@@ -1341,17 +1350,15 @@ class OpenEO():
                 res_out_o_deg = res_out_o*180/np.pi
                 mean_incAngle = np.nanmean(src.loc[dict(variable='LIA')].values)
                 #foreshortening
-                foreshorteningTH   = float(threshold) # Foreshortening threshold
                 foreshortening     = np.bitwise_and(res_out_f_deg > 0,res_out_f_deg < mean_incAngle)*res_out_f_deg / mean_incAngle
                 foreshortening_mask = np.zeros((demdata.shape))
-                foreshortening_mask = (foreshortening > foreshorteningTH).astype(np.float32)
+                foreshortening_mask = (foreshortening > foreshortening_th).astype(np.float32)
                 #layover
                 layover        = np.bitwise_and(res_out_f_deg > 0,res_out_f_deg > mean_incAngle)*res_out_f_deg / mean_incAngle
-                layover_mask   = (layover > 0).astype(np.float32)
+                layover_mask   = (layover > layover_th).astype(np.float32)
                 #shadowing
                 shadow_mask      = np.bitwise_and(res_out_f_deg  < 0,np.abs(res_out_f_deg) > (90-mean_incAngle)).astype(np.float32)
                 
-                # Combine the three masks into a single datacube
                 output = xr.ones_like(src.loc[dict(variable='DEM')]).drop('variable')
                 layover_mask_da = output * layover_mask
                 layover_mask_da['variable'] = 1
