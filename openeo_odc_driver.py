@@ -844,7 +844,6 @@ class OpenEO():
                     except:
                         raise Exception("[!] Not possible to estimate the input data projection!")
                         return
-                transformer = Transformer.from_crs("epsg:" + source_crs, "epsg:"+input_crs)
                 transformer = Transformer.from_crs("epsg:" + str(source_crs), "epsg:"+input_crs)
                 
                 x_t = []
