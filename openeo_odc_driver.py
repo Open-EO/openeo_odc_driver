@@ -94,7 +94,7 @@ class OpenEO():
             pass
         start = time()
         
-        with LocalCluster(n_workers=16, threads_per_worker=4, processes=True,memory_limit='10GB') as cluster:
+        with LocalCluster(n_workers=16, threads_per_worker=1, processes=True,memory_limit='20GB') as cluster:
             with Client(cluster) as client:
                 for i in range(0,len(self.graph)+1):
                     if not self.process_node(i):
