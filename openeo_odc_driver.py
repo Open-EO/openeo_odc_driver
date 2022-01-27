@@ -1368,11 +1368,11 @@ class OpenEO():
                 shadow_mask      = np.bitwise_and(res_out_f_deg  < 0,np.abs(res_out_f_deg) > (90-mean_incAngle)).astype(np.float32)
                 
                 output = xr.ones_like(src.loc[dict(variable='DEM')]).drop('variable')
-                layover_mask_da = output * layover_mask
+                layover_mask_da = (output * layover_mask).clip(0,1)
                 layover_mask_da['variable'] = 1
-                foreshortening_mask_da = output * foreshortening_mask
+                foreshortening_mask_da = (output * foreshortening_mask).clip(0,1)
                 foreshortening_mask_da['variable'] = 2
-                shadow_mask_da = output * shadow_mask
+                shadow_mask_da = (output * shadow_mask).clip(0,1)
                 shadow_mask_da['variable'] = 3
                 
                 self.partialResults[node.id] = xr.concat([layover_mask_da,foreshortening_mask_da,shadow_mask_da],dim='variable')
