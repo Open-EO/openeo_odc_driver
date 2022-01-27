@@ -129,7 +129,7 @@ class OpenEO():
 
                 collection = node.arguments['id'] # The datacube we have to load
                 if collection is None:
-                    raise Exception('[!] You must provide a collection which provides the data!')
+                    raise Exception('[!] You must provide a collection name!')
                 self.sar2cubeCollection = ('SAR2Cube' in collection) # Return True if it's a SAR2Cube collection
         
                 if node.arguments['temporal_extent'] is not None:
@@ -413,7 +413,8 @@ class OpenEO():
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     source = node.arguments['data']['from_node']
                     xDim, yDim = parent.content['arguments']['size']
-                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').sum()
+                    boundary = parent.content['arguments']['boundary']
+                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = boundary).sum()
                 elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'sum' # Don't do anything, apply the sum later after aggregation
                 else:
@@ -435,7 +436,8 @@ class OpenEO():
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     source = node.arguments['data']['from_node']
                     xDim, yDim = parent.content['arguments']['size']
-                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').prod()
+                    boundary = parent.content['arguments']['boundary']
+                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = boundary).prod()
                 elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'product' # Don't do anything, apply the prod later after aggregation
                 else:
@@ -564,7 +566,8 @@ class OpenEO():
                     logging.info('ERROR')
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
-                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').max()
+                    boundary = parent.content['arguments']['boundary']
+                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = boundary).max()
                 elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'max' # Don't do anything, apply the max later after aggregation
                 else:
@@ -591,8 +594,8 @@ class OpenEO():
                     logging.info('ERROR')
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
-                    ## TODO get pad, trim parameter from arguments
-                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').min()
+                    boundary = parent.content['arguments']['boundary']
+                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = boundary).min()
                 elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'min' # Don't do anything, apply the min later after aggregation
                 else:
@@ -620,7 +623,8 @@ class OpenEO():
                 self.partialResults[source] = self.partialResults[source].astype(np.float32)
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
-                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').mean()
+                    boundary = parent.content['arguments']['boundary']
+                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = boundary).mean()
                 elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'mean' # Don't do anything, apply the mean later after aggregation
                 else:
@@ -648,7 +652,8 @@ class OpenEO():
                 self.partialResults[source] = self.partialResults[source].astype(np.float32)
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
-                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').median()
+                    boundary = parent.content['arguments']['boundary']
+                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = boundary).median()
                 elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'median' # Don't do anything, apply the median later after aggregation
                 else:
@@ -675,7 +680,8 @@ class OpenEO():
                     logging.info('ERROR')
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
-                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = 'pad').std()
+                    boundary = parent.content['arguments']['boundary']
+                    self.partialResults[node.id] = self.partialResults[source].coarsen(x=xDim,y=yDim,boundary = boundary).std()
                 elif parent.content['process_id'] in ['aggregate_temporal_period','aggregate_spatial']:
                     self.partialResults[node.id] = 'sd' # Don't do anything, apply the std later after aggregation
                 else:
@@ -776,8 +782,9 @@ class OpenEO():
                 if 'outputMin' in node.arguments:
                     outputMin = node.arguments['outputMin']
                 try:
-                    tmp = self.partialResults[source].clip(inputMin,inputMax)
-                except:
+                    tmp = self.partialResults[source].clip(min=inputMin,max=inputMax)
+                except Exception as e:
+                    logging.info(e)
                     try:
                         tmp = self.partialResults[source].compute()
                         tmp = tmp.clip(inputMin,inputMax)
@@ -1098,7 +1105,7 @@ class OpenEO():
                 dataSource = node.arguments['data']['from_node']
                 # If the mask has a variable dimension, it will keep only the values of the input with the same variable name.
                 # Solution is to take the min over the variable dim to drop that dimension. (Problems if there are more than 1 band/variable)
-                if 'variable' in self.partialResults[maskSource].dims:
+                if 'variable' in self.partialResults[maskSource].dims and len(self.partialResults[maskSource]['variable'])==1:
                     mask = self.partialResults[maskSource].min(dim='variable')
                 else:
                     mask = self.partialResults[maskSource]
@@ -1299,12 +1306,14 @@ class OpenEO():
                 else:
                     logging.error('ERROR')
                 
-                foreshortening_th = 0.2
-                layover_th        = 1.0
                 if 'foreshortening_th' in node.arguments and node.arguments['foreshortening_th'] is not None:
                     foreshortening_th = float(node.arguments['foreshortening_th'])
+                else:
+                    raise Exception("[!] You need to provide the foreshortening_th parameter to compute the radar masks!")
                 if 'layover_th' in node.arguments and node.arguments['layover_th'] is not None:
                     layover_th = float(node.arguments['layover_th'])
+                else:
+                    raise Exception("[!] You need to provide the layover_th parameter to compute the radar masks!")
                 if 'orbit_direction' in node.arguments and node.arguments['orbit_direction'] is not None:
                     orbit_direction = node.arguments['orbit_direction']
                 else:
@@ -1638,7 +1647,7 @@ class OpenEO():
                                 raise Exception("[!] Provided output path is not valid!")
                             if os.path.exists(outputFolder):
                                 self.tmpFolderPath = outputFile
-                                logging.info("New folder ", self.tmpFolderPath)
+                                logging.info("New folder " + str(self.tmpFolderPath))
                                 self.returnFile = False
                             else:
                                 raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
@@ -1697,27 +1706,10 @@ class OpenEO():
     
     def refactor_data(self,data):
         # The following code is required to recreate a Dataset from the final result as Dataarray, to get a well formatted netCDF
-        if 'time' in data.coords:
-            tmp = xr.Dataset(coords={'t':data.time.values,'y':data.y,'x':data.x})
-            if 'variable' in data.coords:
-                try:
-                    for var in data['variable'].values:
-                        tmp[str(var)] = (('t','y','x'),data.loc[dict(variable=var)].drop('variable').transpose('time','y','x'))
-                except Exception as e:
-                    logging.info(e)
-                    tmp[str((data['variable'].values))] = (('t','y','x'),data.transpose('time','y','x'))
-            else:
-                return data.rename({'time':'t'})
-        else:
-            tmp = xr.Dataset(coords={'y':data.y,'x':data.x})
-            if 'variable' in data.coords:
-                try:
-                    for var in data['variable'].values:
-                        tmp[str(var)] = (('y','x'),data.loc[dict(variable=var)].drop('variable').transpose('y','x'))
-                except Exception as e:
-                    logging.info(e)
-                    tmp[str((data['variable'].values))] = (('y','x'),data.transpose('y','x'))
-            else:
-                return data
+        dataset_list = []
+        data.name = None
+        for var in data['variable'].values:
+            dataset_list.append(data.loc[dict(variable=var)].to_dataset(name=var).drop('variable'))
+        tmp = xr.merge(dataset_list)
         tmp.attrs = data.attrs
         return tmp

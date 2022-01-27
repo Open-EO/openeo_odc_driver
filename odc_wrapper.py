@@ -107,7 +107,11 @@ class Odc:
             bbox = [self.west,self.south,self.east,self.north]
             bbox_mask = np.bitwise_and(np.bitwise_and(self.data.grid_lon[0]>bbox[0],self.data.grid_lon[0]<bbox[2]),np.bitwise_and(self.data.grid_lat[0]>bbox[1],self.data.grid_lat[0]<bbox[3]))
             self.data = self.data.where(bbox_mask,drop=True)
-
+            
+        if self.sar2cube_collection():
+            self.data['grid_lon'] = self.data.grid_lon.where(self.data.grid_lon!=0)
+            self.data['grid_lat'] = self.data.grid_lat.where(self.data.grid_lat!=0)
+            
     def list_measurements(self):   # Get all the bands available in the loaded data as a list of strings
         measurements = []
         content = str(self.data)
