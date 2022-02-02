@@ -92,21 +92,47 @@ class OpenEO():
             os.mkdir(self.tmpFolderPath)
         except:
             pass
-        start = time()
-        
-        with LocalCluster(n_workers=16, threads_per_worker=1, processes=True,memory_limit='20GB') as cluster:
-            with Client(cluster) as client:
-                for i in range(0,len(self.graph)+1):
-                    if not self.process_node(i):
-                        logging.info('[*] Processing finished!')
-                        logging.info('[*] Elaspsed time: {}'.format(str(time() - start)))
-                        break
+        self.start = time()
+        logging.info("[*] Init of dask cluster")
+#         client = Client()
+#         for i in range(0,len(self.graph)+1):
+#             if not self.process_node(i):
+#                 logging.info('[*] Processing finished!')
+#                 logging.info('[*] Elaspsed time: ', time() - start)
+#                 break
+#####################################################
+        # def startLocalCluster():
+        try:
+            # from dask_gateway import Gateway
+            # gateway = Gateway("http://127.0.0.1:8000")
+            # logging.info("[*] Creating a dask Gateway client")
+            # cluster = gateway.new_cluster()
+            # logging.info("[*] Getting the dask cluster client")
+            # client = cluster.get_client()
+            # logging.info("[*] Dask initialized correctly!")
+            with LocalCluster(n_workers=16, threads_per_worker=1, processes=True,memory_limit='20GB') as cluster:
+                with Client(cluster) as client:
+                    dask.config.set({"distributed.comm.timeouts.tcp": "50s"})
+                    for i in range(0,len(self.graph)+1):
+                        if not self.process_node(i):
+                            logging.info('[*] Processing finished!')
+                            logging.info('[*] Total elaspsed time: {}'.format(time() - self.start))
+                            break
+        except Exception as e:
+            raise e
+        # loop = asyncio.get_event_loop()
+        # loop.run_until_complete(startLocalCluster())
+        # loop.close()
+        # startLocalCluster()
+#####################################################
+
 
     def process_node(self,i):
         node = self.graph[i]
         processName = node.process_id
         logging.info("Process id: {} Process name: {}".format(node.id,processName))
         try:
+            start_time_proc = time()
             if processName == 'load_collection':
                 defaultTimeStart = '1970-01-01'
                 defaultTimeEnd   = str(datetime.now()).split(' ')[0] # Today is the default date for timeEnd, to include all the dates if not specified
@@ -233,7 +259,7 @@ class OpenEO():
                             else:
                                 self.partialResults[node.id] = "(" + x  + "*" + y + ")"
                         elif processName == 'divide':
-                            if (isinstance(y,float) or isinstance(y,int)) and y==0:
+                            if y==0:
                                 raise Exception(DivisionByZero)
                             else:
                                 self.partialResults[node.id] = "(" + x + "/" + y + ")"
@@ -324,7 +350,14 @@ class OpenEO():
                         raise Exception(MultiplicandMissing)
                     else:
                         try:
-                            self.partialResults[node.id] = (x * y).astype(np.float32)
+                            result = (x * y)
+                            if isinstance(result,int):
+                                result = float(result)
+                            if isinstance(result,float):
+                                pass
+                            else:
+                                result = result.astype(np.float32)
+                            self.partialResults[node.id] = result
                         except:
                             if hasattr(x,'chunks'):
                                 x = x.compute()
@@ -339,7 +372,14 @@ class OpenEO():
                         raise Exception(DivisionByZero)
                     else:
                         try:
-                            self.partialResults[node.id] = (x / y).astype(np.float32)
+                            result = (x / y)
+                            if isinstance(result,int):
+                                result = float(result)
+                            if isinstance(result,float):
+                                pass
+                            else:
+                                result = result.astype(np.float32)
+                            self.partialResults[node.id] = result
                         except:
                             if hasattr(x,'chunks'):
                                 x = x.compute()
@@ -351,7 +391,14 @@ class OpenEO():
                                 raise e
                 elif processName == 'subtract':
                     try:
-                        self.partialResults[node.id] = (x - y).astype(np.float32)
+                        result = (x - y)
+                        if isinstance(result,int):
+                            result = float(result)
+                        if isinstance(result,float):
+                            pass
+                        else:
+                            result = result.astype(np.float32)
+                        self.partialResults[node.id] = result
                     except:
                         if hasattr(x,'chunks'):
                             x = x.compute()
@@ -363,7 +410,14 @@ class OpenEO():
                             raise e
                 elif processName == 'add':
                     try:
-                        self.partialResults[node.id] = (x + y).astype(np.float32)
+                        result = (x + y)
+                        if isinstance(result,int):
+                            result = float(result)
+                        if isinstance(result,float):
+                            pass
+                        else:
+                            result = result.astype(np.float32)
+                        self.partialResults[node.id] = result
                     except:
                         if hasattr(x,'chunks'):
                             x = x.compute()
@@ -1183,11 +1237,13 @@ class OpenEO():
 
             if processName == 'geocode':
                 source = node.arguments['data']['from_node']
-                if 'resolution' in node.arguments:
+                if 'resolution' in node.arguments and node.arguments['resolution'] is not None:
                     spatialres = node.arguments['resolution']
                 else:
                     raise Exception("[!] The geocode process is missing the required resolution field.")
-                if 'crs' in node.arguments:
+                if spatialres not in [10,20,60]:
+                    raise Exception("[!] The geocode process supports only 10m,20m,60m for resolution to align with the Sentinel-2 grid.")
+                if 'crs' in node.arguments and node.arguments['crs'] is not None:
                     output_crs = "epsg:" + str(node.arguments['crs'])
                     self.crs = node.arguments['crs']
                 else:
@@ -1201,13 +1257,14 @@ class OpenEO():
                     self.partialResults[source].loc[dict(variable='grid_lat')]
                     if len(self.partialResults[source].dims) >= 3:
                         if 'time' in self.partialResults[source].dims and len(self.partialResults[source].loc[dict(variable='grid_lon')].dims)>2:
-                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon',time=self.partialResults[source].time[0])].values
-                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat',time=self.partialResults[source].time[0])].values
+                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon',time=self.partialResults[source].time[0])]
+                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat',time=self.partialResults[source].time[0])]
                         else:
-                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon')].values
-                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat')].values
+                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon')]
+                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat')]
                 except Exception as e:
                     raise(e)    
+        
                 x_regular, y_regular, grid_x_irregular, grid_y_irregular = create_S2grid(grid_lon,grid_lat,output_crs,spatialres)
                 grid_x_regular, grid_y_regular = np.meshgrid(x_regular,y_regular)
                 grid_x_irregular = grid_x_irregular.astype(np.float32)
@@ -1263,14 +1320,15 @@ class OpenEO():
                     return result_arr
                 
                 logging.info("Geocoding started!")
-                start = time()
                 try: 
                     self.partialResults[source]['time']
                     for t in self.partialResults[source]['time']:
                         geocoded_dataset = None
+                        data_t = self.partialResults[source].loc[dict(time=t)]
                         for var in self.partialResults[source]['variable']:
                             if (var.values!='grid_lon' and var.values!='grid_lat'):
-                                data = self.partialResults[source].loc[dict(variable=var,time=t)]
+                                logging.info("Geocoding band {} for date {}".format(var.values,t.values))
+                                data = data_t.loc[dict(variable=var)]
                                 geocoded_data = data_geocoding(data,grid_regular_flat).reshape(grid_x_regular_shape)
                                 if geocoded_dataset is None:
                                     geocoded_dataset = geocoded_cube.assign_coords(time=t.values).expand_dims('time')
@@ -1283,7 +1341,8 @@ class OpenEO():
                     ## With a timeseries of geocoded data, I write every timestep, which can have multiple bands,
                     ## into a NetCDF and then I read the timeseries in chunks to avoid memory problems.
                     self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/*.nc', combine="by_coords").to_array()
-                except:
+                except Exception as e:
+                    logging.error(e)
                     geocoded_dataset = None
                     for var in self.partialResults[source]['variable']:
                         if (var.values!='grid_lon' and var.values!='grid_lat'):
@@ -1413,33 +1472,25 @@ class OpenEO():
                             "x": (["x"],self.partialResults[source].x.values)
                         },
                     )
-                    if i==0:
-                        tmp_dataset = tmp_dataset.assign_coords(time=pair[0]).expand_dims('time')
-                        tmp_dataset['i_VV'] = (("time","y", "x"),VV_i_coh.expand_dims('time'))
-                        tmp_dataset['q_VV'] = (("time","y", "x"),VV_q_coh.expand_dims('time'))
-                        tmp_dataset['i_VH'] = (("time","y", "x"),VH_i_coh.expand_dims('time'))
-                        tmp_dataset['q_VH'] = (("time","y", "x"),VH_q_coh.expand_dims('time'))
-                        tmp_dataset_timeseries = tmp_dataset
-                    else:
-                        tmp_dataset = tmp_dataset.assign_coords(time=pair[0]).expand_dims('time')
-                        tmp_dataset['i_VV'] = (("time","y", "x"),VV_i_coh.expand_dims('time'))
-                        tmp_dataset['q_VV'] = (("time","y", "x"),VV_q_coh.expand_dims('time'))
-                        tmp_dataset['i_VH'] = (("time","y", "x"),VH_i_coh.expand_dims('time'))
-                        tmp_dataset['q_VH'] = (("time","y", "x"),VH_q_coh.expand_dims('time'))
-                        tmp_dataset_timeseries = xr.concat([tmp_dataset_timeseries,tmp_dataset],dim='time')
-                
-                logging.info('COHERENCE RESULT:\n',tmp_dataset_timeseries.to_array())
-                self.partialResults[node.id] = tmp_dataset_timeseries.to_array()
+                    tmp_dataset = tmp_dataset.assign_coords(time=pair[0]).expand_dims('time')
+                    tmp_dataset['i_VV'] = (("time","y", "x"),VV_i_coh.expand_dims('time').values)
+                    tmp_dataset['q_VV'] = (("time","y", "x"),VV_q_coh.expand_dims('time').values)
+                    tmp_dataset['i_VH'] = (("time","y", "x"),VH_i_coh.expand_dims('time').values)
+                    tmp_dataset['q_VH'] = (("time","y", "x"),VH_q_coh.expand_dims('time').values)
+                    tmp_dataset.to_netcdf(self.tmpFolderPath+'/coh_'+str(t)+'.nc')
+                    tmp_dataset = None
+                    
+                self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/coh_*.nc', combine="by_coords").to_array()
                 
             if processName == 'fit_curve':
-                start = time()
                 ## The fitting function as been converted in a dedicated if statement into a string
                 fitFunction = self.partialResults[node.arguments['function']['from_node']]
                 ## The data can't contain NaN values, they are replaced with zeros
 #                 data = self.partialResults[node.arguments['data']['from_node']].compute().fillna(0)
                 data = self.partialResults[node.arguments['data']['from_node']].fillna(0)
-                data_dataset = self.refactor_data(data)
-                data_dataset = data_dataset.rename({'t':'time'})
+                data.name = None
+                data_dataset = data.to_dataset(dim='variable').chunk({'time':-1,'x':512,'y':512})
+                # data_dataset = data_dataset.rename({'t':'time'})
                 baseParameters = node.arguments['parameters'] ## TODO: take care of them, currently ignored
 
                 ## Preparation of fitting functions:
@@ -1521,7 +1572,6 @@ class OpenEO():
                     predictedData = predicting_function(data.time,baseParameters[0,:,:].drop('variable'),baseParameters[1,:,:].drop('variable'),baseParameters[2,:,:].drop('variable'))
                 
                 data['time'] = dates
-                logging.info("Elapsed time: ",time() - start)
                 self.partialResults[node.id] = predictedData.to_array().transpose('variable','time','y','x')
                 
             if processName == 'load_result':
@@ -1656,10 +1706,11 @@ class OpenEO():
                             self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
                         else:
                             self.partialResults[source].to_netcdf(self.tmpFolderPath)
-                        return
+                        return 0
 #                     logging.info('refactor_data')
 #                     tmp = self.refactor_data(self.partialResults[source])
                     tmp = self.partialResults[source]
+                    tmp = tmp.rio.write_crs(self.crs)
 #                     tmp.attrs = self.partialResults[source].attrs
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
@@ -1667,7 +1718,7 @@ class OpenEO():
                             tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
                         else:
                             tmp.to_netcdf(self.tmpFolderPath)
-                        return
+                        return 0
                     except Exception as e:
                         logging.info(e)
                         logging.info("Wrtiting netcdf failed, trying another time....")
@@ -1682,7 +1733,8 @@ class OpenEO():
                         logging.info(e)
                         logging.info("Wrtiting netcdf failed!")
                         pass
-                    return 
+#                     del(self.partialResults)
+                    return 0
                 
                 if outFormat.lower == 'json':
                     self.outFormat = '.json'
@@ -1694,9 +1746,10 @@ class OpenEO():
                 
                 else:
                     raise Exception("[!] Output format not recognized/implemented!")
-
+                
                 return 0 # Save result is the end of the process graph
             
+            logging.info("Elapsed time: {}".format(time() - start_time_proc))
             self.listExecutedIds.append(node.id) # Store the processed nodes ids
             return 1 # Go on and process the next node
         
