@@ -6,6 +6,7 @@ import datacube
 import numpy as np
 import copy
 from datetime import datetime
+from time import time
 import shapely
 from shapely.geometry import shape
 #libraries for polygon and polygon mask
@@ -16,6 +17,17 @@ from datacube.utils import geometry
 from datacube.utils.geometry import Geometry, CRS
 import dea_tools.datahandling  # or some other submodule
 from config import *
+import logging
+import sys
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("odc_openeo_engine.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
 class Odc:
     def __init__(self,collections=None,timeStart=None,timeEnd=None,south=None,north=None,west=None,east=None,bands=None,resolutions=None,outputCrs=None,polygon=None,resamplingMethod=None,crs=None):
@@ -104,13 +116,20 @@ class Odc:
 
             
         if (self.sar2cube_collection() and self.south is not None and self.north is not None and self.east is not None and self.west is not None):
+            attrs = self.data.attrs
+            start_masking = time()    
             bbox = [self.west,self.south,self.east,self.north]
-            bbox_mask = np.bitwise_and(np.bitwise_and(self.data.grid_lon[0]>bbox[0],self.data.grid_lon[0]<bbox[2]),np.bitwise_and(self.data.grid_lat[0]>bbox[1],self.data.grid_lat[0]<bbox[3]))
-            self.data = self.data.where(bbox_mask,drop=True)
-            
+            grid_lon = self.data.grid_lon[0]
+            grid_lat = self.data.grid_lat[0]
+            bbox_mask = np.bitwise_and(np.bitwise_and(grid_lon>bbox[0],grid_lon<bbox[2]),np.bitwise_and(grid_lat>bbox[1],grid_lat<bbox[3]))
+            # self.data = self.data.where(bbox_mask,drop=True)
+            bbox_mask = bbox_mask.where(bbox_mask,drop=True)
+            self.data = self.data * bbox_mask
+            self.data.attrs = attrs
         if self.sar2cube_collection():
             self.data['grid_lon'] = self.data.grid_lon.where(self.data.grid_lon!=0)
             self.data['grid_lat'] = self.data.grid_lat.where(self.data.grid_lat!=0)
+            logging.info("Elapsed time data masking: {}".format(time() - start_masking))
             
     def list_measurements(self):   # Get all the bands available in the loaded data as a list of strings
         measurements = []
