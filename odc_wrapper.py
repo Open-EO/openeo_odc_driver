@@ -126,10 +126,10 @@ class Odc:
             bbox_mask = bbox_mask.where(bbox_mask,drop=True)
             self.data = self.data * bbox_mask
             self.data.attrs = attrs
+            logging.info("Elapsed time data masking: {}".format(time() - start_masking))
         if self.sar2cube_collection():
             self.data['grid_lon'] = self.data.grid_lon.where(self.data.grid_lon!=0)
             self.data['grid_lat'] = self.data.grid_lat.where(self.data.grid_lat!=0)
-            logging.info("Elapsed time data masking: {}".format(time() - start_masking))
             
     def list_measurements(self):   # Get all the bands available in the loaded data as a list of strings
         measurements = []

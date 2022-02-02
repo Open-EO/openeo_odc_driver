@@ -1291,13 +1291,16 @@ class OpenEO():
                 )
 
                 def data_geocoding(data,grid_regular_flat):
+                    flat_time = time()
                     flat_data = data.values.flatten()
-
+                    logging.info(" Data loading time:                 {}".format(time() - flat_time))
+                    
                     def parallel_geocoding(subgrid):
                         interpolator  = LinearNDInterpolator(delaunay_obj, flat_data)
                         geocoded_data_slice = interpolator(subgrid)
                         return geocoded_data_slice
-
+                    
+                    flat_time = time()
                     chunk_length = 20000000
                     subgrids = []
                     for i in range(int(len(grid_regular_flat)/chunk_length)+1):
@@ -1311,12 +1314,18 @@ class OpenEO():
                     result = []
                     for s in subgrids:
                         result.append(delayed(parallel_geocoding)(s))
-
+                    
+                    logging.info(" Data splitting and parallel pool: {}".format(time() - flat_time))
+                                      
+                    flat_time = time()
                     result = dask.compute(*result)
+                    logging.info(" Dask compute:                     {}".format(time() - flat_time))
+                    flat_time = time()
                     result_list = []
                     for r in result:
                         result_list += r.tolist()
                     result_arr = np.asarray(result_list)
+                    logging.info(" Reshaping:                        {}".format(time() - flat_time))
                     return result_arr
                 
                 logging.info("Geocoding started!")
