@@ -1336,7 +1336,7 @@ class OpenEO():
                         data_t = self.partialResults[source].loc[dict(time=t)]
                         for var in self.partialResults[source]['variable']:
                             if (var.values!='grid_lon' and var.values!='grid_lat'):
-                                logging.info("Geocoding band {} for date {}".format(var.values,t.values))
+                                logging.info("Geocoding band {} for date {}".format(str(var),str(t)))
                                 data = data_t.loc[dict(variable=var)]
                                 geocoded_data = data_geocoding(data,grid_regular_flat).reshape(grid_x_regular_shape)
                                 if geocoded_dataset is None:
