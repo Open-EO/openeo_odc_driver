@@ -1,9 +1,10 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   10/05/2021
+# Date:   08/02/2022
 
 import datacube
 import numpy as np
+import xarray as xr
 import copy
 from datetime import datetime
 from time import time
@@ -98,8 +99,9 @@ class Odc:
         
         try:
             self.data = self.dc.load(datasets=datasets,**self.query).astype(np.float32)
+            if self.data.equals(xr.Dataset()):
+                raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
         except Exception as e:
-            print(e)
             if (str(e)=='Product has no default CRS. Must specify \'output_crs\' and \'resolution\''):
                 # Identify the most common projection system in the input query
                 crs_query = copy.deepcopy(self.query)
@@ -112,7 +114,7 @@ class Odc:
                 self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}
                 self.data = self.dc.load(datasets=datasets,**self.query)
             else:
-                raise Exception(str(e))
+                raise e
 
             
         if (self.sar2cube_collection() and self.south is not None and self.north is not None and self.east is not None and self.west is not None):
