@@ -1257,11 +1257,11 @@ class OpenEO():
                     self.partialResults[source].loc[dict(variable='grid_lat')]
                     if len(self.partialResults[source].dims) >= 3:
                         if 'time' in self.partialResults[source].dims and len(self.partialResults[source].loc[dict(variable='grid_lon')].dims)>2:
-                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon',time=self.partialResults[source].time[0])]
-                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat',time=self.partialResults[source].time[0])]
+                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon',time=self.partialResults[source].time[0])].values
+                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat',time=self.partialResults[source].time[0])].values
                         else:
-                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon')]
-                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat')]
+                            grid_lon = self.partialResults[source].loc[dict(variable='grid_lon')].values
+                            grid_lat = self.partialResults[source].loc[dict(variable='grid_lat')].values
                 except Exception as e:
                     raise(e)    
         
