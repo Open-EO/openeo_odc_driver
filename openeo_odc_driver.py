@@ -927,10 +927,20 @@ class OpenEO():
                     self.partialResults[node.id] = self.partialResults[source].loc[dict(x=slice(x_min,x_max),y=slice(y_min,y_max))]
                 
             if processName == 'rename_labels':
-                source = node.arguments['data']['from_node']
-                # We need to create a new dataset, with time dimension if present.
-                if 'time' in self.partialResults[source].coords:
-                    tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
+                source    = node.arguments['data']['from_node']
+                dimension = node.arguments['dimension']
+                target_labels    = node.arguments['target']
+                source_labels    = node.arguments['source']
+                if dimension is None:
+                    raise Exception("The mandatory field {} must be provided.".format('dimension'))
+                if dimension not in ['t','time','temporal','DATE','bands','x','y','X','Y']:
+                    raise Exception("The dimension field {} does not exist.".format(dimension))
+                if dimension == 'bands':
+                    if 'variable' not in self.partialResults[source].coords:
+                        raise Exception(DimensionNotAvailable + "\nThe datacube does not have the dimension {} but only {}.".format(dimension,self.partialResults[source].coords.values))
+                    # We need to create a new dataset, with time dimension if present.
+                    if 'time' in self.partialResults[source].coords:
+                        tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
                 else:
                     tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
                 for i in range(len(node.arguments['target'])):
