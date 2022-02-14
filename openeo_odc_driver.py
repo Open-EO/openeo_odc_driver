@@ -925,7 +925,7 @@ class OpenEO():
                 self.partialResults[node.id] = self.partialResults[source].loc[dict(x=slice(x_min,x_max),y=slice(y_max,y_min))]
                 if len(self.partialResults[node.id].y) == 0:
                     self.partialResults[node.id] = self.partialResults[source].loc[dict(x=slice(x_min,x_max),y=slice(y_min,y_max))]
-                
+
             if processName == 'rename_labels':
                 source    = node.arguments['data']['from_node']
                 dimension = node.arguments['dimension']
@@ -941,20 +941,34 @@ class OpenEO():
                     # We need to create a new dataset, with time dimension if present.
                     if 'time' in self.partialResults[source].coords:
                         tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x,'time':self.partialResults[source].time})
-                else:
-                    tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
-                for i in range(len(node.arguments['target'])):
-                    label_target = node.arguments['target'][i]
-                    if (len(node.arguments['source']))>0:
-                        label_source = node.arguments['source'][i]
-                        tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
                     else:
-                        if 'variable' in self.partialResults[source].coords:
-                            tmp = tmp.assign({label_target:self.partialResults[source][i]})
+                        tmp = xr.Dataset(coords={'y':self.partialResults[source].y,'x':self.partialResults[source].x})
+                    for i in range(len(node.arguments['target'])):
+                        label_target = node.arguments['target'][i]
+                        if (len(node.arguments['source']))>0:
+                            label_source = node.arguments['source'][i]
+                            tmp = tmp.assign({label_target:self.partialResults[source].loc[dict(variable=label_source)]})
                         else:
-                            tmp = tmp.assign({label_target:self.partialResults[source]})
-                self.partialResults[node.id] = tmp.to_array()
+                            if 'variable' in self.partialResults[source].coords:
+                                tmp = tmp.assign({label_target:self.partialResults[source][i]})
+                            else:
+                                tmp = tmp.assign({label_target:self.partialResults[source]})
+                    self.partialResults[node.id] = tmp.to_array()
 
+                if dimension in ['t','temporal','time','DATE']:                    
+                    if 'time' not in self.partialResults[source].coords:
+                        raise Exception(DimensionNotAvailable + "\nThe datacube does not have the dimension {} but only {}.".format(dimension,self.partialResults[source].coords.values))
+                    else:
+                        if target_labels is not None and target_labels != []:
+                            if len(target_labels) != len(self.partialResults[source]['time'].values):
+                                raise Exception(LabelMismatch)
+                            else:
+                                self.partialResults[node.id] = self.partialResults[source]
+                                self.partialResults[node.id]['time'] = np.asarray(target_labels)
+                        else:
+                            self.partialResults[node.id] = self.partialResults[source]
+                            self.partialResults[node.id]['time'] = np.asarray(np.arange(0,len(self.partialResults[source]['time'].values)))
+                        
             if processName == 'add_dimension':
                 source = node.arguments['data']['from_node']
                 try:
