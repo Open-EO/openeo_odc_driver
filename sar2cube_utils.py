@@ -61,8 +61,15 @@ def create_S2grid(grid_lon,grid_lat,output_crs,spatialres):
     print('Aligned with S2 grid bounds: ',ulxgrid, lrygrid, lrxgrid, ulygrid)
     wout = int((lrxgrid - ulxgrid) / spatialres)
     hout = int((ulygrid - lrygrid) / spatialres)
-    x_regular = np.linspace(ulxgrid, lrxgrid, int(wout+1)) + 10
-    y_regular = np.linspace(lrygrid, ulygrid, int(hout+1)) + 10
+    if spatialres==10:
+        x_regular = np.linspace(ulxgrid, lrxgrid, int(wout+1)) + 5
+        y_regular = np.linspace(lrygrid, ulygrid, int(hout+1)) + 5
+    elif spatialres==20:
+        x_regular = np.linspace(ulxgrid, lrxgrid, int(wout+1)) + 10
+        y_regular = np.linspace(lrygrid, ulygrid, int(hout+1)) + 10
+    else:
+        x_regular = np.linspace(ulxgrid, lrxgrid, int(wout+1))
+        y_regular = np.linspace(lrygrid, ulygrid, int(hout+1))
     return x_regular.astype(np.float32), y_regular.astype(np.float32), grid_x_irregular.astype(np.float32), grid_y_irregular.astype(np.float32)
 
 def find_nearest(array, value):
