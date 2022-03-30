@@ -120,7 +120,7 @@ class OpenEO():
             # logging.info("[*] Getting the dask cluster client")
             # client = cluster.get_client()
             # logging.info("[*] Dask initialized correctly!")
-            with LocalCluster(n_workers=16, threads_per_worker=1, processes=True,memory_limit='20GB') as cluster:
+            with LocalCluster(n_workers=8, threads_per_worker=1, processes=True,memory_limit='20GB') as cluster:
                 with Client(cluster) as client:
                     dask.config.set({"distributed.comm.timeouts.tcp": "50s"})
                     for i in range(0,len(self.graph)+1):
