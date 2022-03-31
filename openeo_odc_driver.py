@@ -1277,10 +1277,10 @@ class OpenEO():
                     num_chunks_y = int(np.ceil(data_size[0]/size))
                     for i in range(num_chunks_x):
                         x1 = i * size
-                        x2 = min(x1 + size, data_size[1]) - 1
+                        x2 = min(x1 + size, data_size[1])
                         for j in range(num_chunks_y):
                             y1 = j * size
-                            y2 = min(y1 + size, data_size[0]) - 1
+                            y2 = min(y1 + size, data_size[0])
                             chunk = data[y1:y2,x1:x2]
                             chunks.append(chunk)
                     return chunks
@@ -1392,15 +1392,11 @@ class OpenEO():
                 x_regular, y_regular, grid_x_irregular, grid_y_irregular = create_S2grid(grid_lon,grid_lat,output_crs,spatialres)
                 grid_x_regular, grid_y_regular = np.meshgrid(x_regular,y_regular)
 
-                grid_x_irregular = grid_x_irregular.astype(np.float32)
-                grid_y_irregular = grid_y_irregular.astype(np.float32)
-                x_regular = x_regular.astype(np.float32)
-                y_regular = y_regular.astype(np.float32)
                 grid_x_regular = grid_x_regular.astype(np.float32)
                 grid_y_regular = grid_y_regular.astype(np.float32)
                 
-                chunks_x_regular = chunk_cube(grid_x_regular,size=513)
-                chunks_y_regular = chunk_cube(grid_y_regular,size=513)
+                chunks_x_regular = chunk_cube(grid_x_regular,size=512)
+                chunks_y_regular = chunk_cube(grid_y_regular,size=512)
                 grid_x_regular_shape = grid_x_regular.shape
                 grid_x_regular = None
                 grid_y_regular = None

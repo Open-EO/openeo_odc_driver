@@ -62,14 +62,15 @@ def create_S2grid(grid_lon,grid_lat,output_crs,spatialres):
     wout = int((lrxgrid - ulxgrid) / spatialres)
     hout = int((ulygrid - lrygrid) / spatialres)
     if spatialres==10:
-        x_regular = np.linspace(ulxgrid, lrxgrid, int(wout+1)) + 5
-        y_regular = np.linspace(lrygrid, ulygrid, int(hout+1)) + 5
+        x_regular = np.linspace(ulxgrid + 5, lrxgrid - 5, int(wout))
+        y_regular = np.linspace(ulygrid - 5, lrygrid + 5, int(hout))
     elif spatialres==20:
-        x_regular = np.linspace(ulxgrid, lrxgrid, int(wout+1)) + 10
-        y_regular = np.linspace(lrygrid, ulygrid, int(hout+1)) + 10
+        x_regular = np.linspace(ulxgrid + 10, lrxgrid - 10, int(wout))
+        y_regular = np.linspace(ulygrid - 10, lrygrid + 10, int(hout))
     else:
-        x_regular = np.linspace(ulxgrid, lrxgrid, int(wout+1))
-        y_regular = np.linspace(lrygrid, ulygrid, int(hout+1))
+        x_regular = np.linspace(ulxgrid + 30, lrxgrid - 30, int(wout))
+        y_regular = np.linspace(ulygrid - 30, lrygrid + 30, int(hout))
+    
     return x_regular.astype(np.float32), y_regular.astype(np.float32), grid_x_irregular.astype(np.float32), grid_y_irregular.astype(np.float32)
 
 def find_nearest(array, value):
