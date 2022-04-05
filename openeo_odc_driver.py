@@ -1428,7 +1428,7 @@ class OpenEO():
                     geocoded_dataset = None
                     for var in self.partialResults[source]['variable']:
                         if (var.values!='grid_lon' and var.values!='grid_lat'):
-                            logging.info("Geocoding band {} {}".format(var.values))
+                            logging.info("Geocoding band {}".format(var.values))
                             numpy_data = self.partialResults[source].loc[dict(variable=var)]
                             Parallel(n_jobs=12, verbose=51)(
                                 joblibDelayed(chunked_delaunay_interpolation)(index,
