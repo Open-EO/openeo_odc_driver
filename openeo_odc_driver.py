@@ -1441,7 +1441,7 @@ class OpenEO():
                                                                               numpy_data,
                                                                               spatialres)for index in range(len(chunks_x_regular)))
                 self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/*.nc', combine="by_coords").to_array()
-
+                self.partialResults[node.id] = self.partialResults[node.id].sortby(self.partialResults[node.id].y)
 
                             
                 tmp_files_to_remove = glob(self.tmpFolderPath + '/*.pc')
