@@ -40,6 +40,10 @@ app = Flask('openeo_odc_driver')
 def error500(error):
     return error, 500 
 
+@app.errorhandler(400)
+def error400(error):
+    return error, 400 
+
 @app.route('/graph', methods=['POST'])
 def process_graph():
     jsonGraph = request.json
@@ -53,7 +57,7 @@ def process_graph():
             print("OUTPUT FILE: ",eo.tmpFolderPath)
 
     except Exception as e:
-        return error500("ODC engine error in process: " + str(e))
+        return error400("ODC engine error in process: " + str(e))
 
 @app.route('/collections', methods=['GET'])
 def list_collections():
@@ -91,6 +95,7 @@ def describe_collection(name):
     return jsonify(stacCollection)
 
 def construct_stac_collection(collectionName):
+    logging.info("[*] Constructing the metadata for {}".format(collectionName))
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName)
     stacCollection = res.json()
     metadata = None
@@ -114,8 +119,10 @@ def construct_stac_collection(collectionName):
 
     ### SUPPLEMENTARY METADATA FROM FILE
     if metadata is not None:
-        stacCollection['title']       = metadata['title']
-        stacCollection['description'] = metadata['description']
+        if 'title' in metadata.keys():
+            stacCollection['title']       = metadata['title']
+        if 'description' in metadata.keys():
+            stacCollection['description'] = metadata['description']
         if 'keywords' in metadata.keys():
             stacCollection['keywords']     = metadata['keywords']
         if 'providers' in metadata.keys():

@@ -1270,7 +1270,7 @@ class OpenEO():
                     self.partialResults[node.id] = self.partialResults[node.id] * factor
 
             if processName == 'geocode':
-                def chunk_cube(data, size = 1025):
+                def chunk_cube(data, size = 1024):
                     chunks = []
                     data_size = data.shape
                     num_chunks_x = int(np.ceil(data_size[1]/size))
@@ -1769,7 +1769,9 @@ class OpenEO():
                     else:
                         self.partialResults[node.id] = self.partialResults[source] 
                     self.partialResults[node.id].attrs['crs'] = self.crs
-                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tiff")
+                    STATISTICS_MAXIMUM = self.partialResults[node.id].max().values
+                    STATISTICS_MINIMUM = self.partialResults[node.id].min().values
+                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tiff", tags = {'STATISTICS_MAXIMUM':STATISTICS_MAXIMUM,'STATISTICS_MINIMUM':STATISTICS_MINIMUM})
                     return 0
 
                 if outFormat.lower() in ['netcdf','nc']:
