@@ -38,6 +38,7 @@ from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 from shapely.geometry.multipolygon import MultiPolygon
 from shapely.geometry.multipoint import MultiPoint
+from osgeo import gdal
 # Machine Learning
 from sklearn import tree, model_selection
 from sklearn.metrics import accuracy_score
@@ -1769,9 +1770,15 @@ class OpenEO():
                     else:
                         self.partialResults[node.id] = self.partialResults[source] 
                     self.partialResults[node.id].attrs['crs'] = self.crs
-                    STATISTICS_MAXIMUM = self.partialResults[node.id].max().values
-                    STATISTICS_MINIMUM = self.partialResults[node.id].min().values
-                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tiff", tags = {'STATISTICS_MAXIMUM':STATISTICS_MAXIMUM,'STATISTICS_MINIMUM':STATISTICS_MINIMUM})
+                    if 'variable' in self.partialResults[node.id].dims:
+                        self.partialResults[node.id] = self.partialResults[node.id].to_dataset(dim='variable')
+                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tiff")
+                    ds = gdal.Open(self.tmpFolderPath + "/output.tiff", gdal.GA_Update)
+                    n_of_bands = ds.RasterCount
+                    for band in range(n_of_bands):
+                        ds.GetRasterBand(band+1).ComputeStatistics(0)
+                        ds.GetRasterBand(band+1).SetNoDataValue(np.nan)
+                    
                     return 0
 
                 if outFormat.lower() in ['netcdf','nc']:
