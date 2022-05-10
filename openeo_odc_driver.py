@@ -576,7 +576,14 @@ class OpenEO():
 
             if processName == 'aggregate_spatial':
                 source = node.arguments['data']['from_node']
-                gdf = gpd.GeoDataFrame.from_features(node.arguments['geometries']['features'])
+                geometries = node.arguments['geometries']
+                for feature in geometries['features']:
+                    if 'properties' not in feature:
+                        feature['properties'] = {}
+                    elif feature['properties'] is None:
+                        feature['properties'] = {}
+                gdf = gpd.GeoDataFrame.from_features(geometries['features'])
+
                 ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
                 gdf = gdf.set_crs(4326)
                 gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))
