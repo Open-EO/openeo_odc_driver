@@ -49,16 +49,10 @@ def process_graph():
     jsonGraph = request.json
     try:
         eo = OpenEO(jsonGraph)
-        if eo.returnFile:
-            return send_file(eo.tmpFolderPath + "/output"+eo.outFormat, as_attachment=True, attachment_filename='output'+eo.outFormat)
-            print("OUTPUT FILE: ",eo.tmpFolderPath + "/output"+eo.outFormat)
-        else:
-            return jsonify({"output":eo.tmpFolderPath})
-            print("OUTPUT FILE: ",eo.tmpFolderPath)
-
+        return jsonify({"output":eo.tmpFolderPath.split('/')[-1] + "/result"+eo.outFormat})
     except Exception as e:
         return error400("ODC engine error in process: " + str(e))
-
+    
 @app.route('/collections', methods=['GET'])
 def list_collections():
     if USE_CACHED_COLLECTIONS:

@@ -1745,7 +1745,7 @@ class OpenEO():
                             bgr = cv2.resize(bgr, dsize)
                     bgr = bgr.astype(np.uint8)
                     if(self.sar2cubeCollection): bgr=np.flipud(bgr)
-                    cv2.imwrite(str(self.tmpFolderPath) + '/output.png',bgr)
+                    cv2.imwrite(str(self.tmpFolderPath) + '/result.png',bgr)
                     return 0
 
                 if outFormat.lower() in ['gtiff','geotiff','tif','tiff']:
@@ -1779,8 +1779,8 @@ class OpenEO():
                     self.partialResults[node.id].attrs['crs'] = self.crs
                     if 'variable' in self.partialResults[node.id].dims:
                         self.partialResults[node.id] = self.partialResults[node.id].to_dataset(dim='variable')
-                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/output.tiff")
-                    ds = gdal.Open(self.tmpFolderPath + "/output.tiff", gdal.GA_Update)
+                    self.partialResults[node.id].rio.to_raster(self.tmpFolderPath + "/result.tiff")
+                    ds = gdal.Open(self.tmpFolderPath + "/result.tiff", gdal.GA_Update)
                     n_of_bands = ds.RasterCount
                     for band in range(n_of_bands):
                         ds.GetRasterBand(band+1).ComputeStatistics(0)
@@ -1810,7 +1810,7 @@ class OpenEO():
                                 raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
                     if 'params' in self.partialResults[source].dims:
                         if self.returnFile:
-                            self.partialResults[source].to_netcdf(self.tmpFolderPath + "/output.nc")
+                            self.partialResults[source].to_netcdf(self.tmpFolderPath + "/result.nc")
                         else:
                             self.partialResults[source].to_netcdf(self.tmpFolderPath)
                         return 0
@@ -1822,7 +1822,7 @@ class OpenEO():
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
                         if self.returnFile:
-                            tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
+                            tmp.to_netcdf(self.tmpFolderPath + "/result.nc")
                         else:
                             tmp.to_netcdf(self.tmpFolderPath)
                         return 0
@@ -1833,7 +1833,7 @@ class OpenEO():
                     try:
                         tmp.time.attrs.pop('units', None)
                         if self.returnFile:
-                            tmp.to_netcdf(self.tmpFolderPath + "/output.nc")
+                            tmp.to_netcdf(self.tmpFolderPath + "/result.nc")
                         else:
                             tmp.to_netcdf(self.tmpFolderPath)
                     except Exception as e:
@@ -1846,8 +1846,12 @@ class OpenEO():
                 if outFormat.lower == 'json':
                     self.outFormat = '.json'
                     self.mimeType = 'application/json'
+                    if isinstance(self.partialResults[source],gpd.geodataframe.GeoDataFrame):
+                        self.partialResults[source].to_file(self.tmpFolderPath + "/result.json", driver="GeoJSON")
+                        return
+                    else:
                     self.partialResults[node.id] = self.partialResults[source].to_dict()
-                    with open(self.tmpFolderPath + "/output.json", 'w') as outfile:
+                        with open(self.tmpFolderPath + "/result.json", 'w') as outfile:
                         json.dump(self.partialResults[node.id],outfile)
                     return 
                 
