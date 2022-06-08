@@ -1850,11 +1850,11 @@ class OpenEO():
                         self.partialResults[source].to_file(self.tmpFolderPath + "/result.json", driver="GeoJSON")
                         return
                     else:
-                    self.partialResults[node.id] = self.partialResults[source].to_dict()
+                        self.partialResults[node.id] = self.partialResults[source].to_dict()
                         with open(self.tmpFolderPath + "/result.json", 'w') as outfile:
-                        json.dump(self.partialResults[node.id],outfile)
-                    return 
-                
+                            json.dump(self.partialResults[node.id],outfile) #indent fix
+                        return 
+
                 else:
                     raise Exception("[!] Output format not recognized/implemented!")
                 
