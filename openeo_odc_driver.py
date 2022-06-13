@@ -1244,7 +1244,7 @@ class OpenEO():
 
             if processName == 'apply_kernel':
                 def convolve(data, kernel, mode='constant', cval=0, fill_value=0):
-                    dims = ('y','x')
+                    dims = ('x','y')
                 #   scipy.ndimage.convolve(input, weights, output=None, mode='reflect', cval=0.0, origin=0)
                     convolved = lambda data: scipy.ndimage.convolve(data, kernel, mode=mode, cval=cval)
 
