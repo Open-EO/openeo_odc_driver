@@ -1033,7 +1033,14 @@ class OpenEO():
                             # Simple case: same bands in both datacubes
                             logging.info("Simple case: same bands in both datacubes")
                             logging.info("We need to check if the timestep are different, if yes we can merge directly")
-                            if (self.partialResults[cube1].time.values != self.partialResults[cube2].time.values).all():
+                            try:
+                                all_timesteps_different = (self.partialResults[cube1].time.values != self.partialResults[cube2].time.values).all()
+                            except:
+                                try:
+                                    all_timesteps_different = self.partialResults[cube1].time.values != self.partialResults[cube2].time.values
+                                except Exception as e:
+                                    raise e                                    
+                            if all_timesteps_different:
                                 self.partialResults[node.id] = xr.concat([self.partialResults[cube1],self.partialResults[cube2]],dim='time')
                             else:
                                 #Overlap resolver required
