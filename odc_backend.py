@@ -90,6 +90,13 @@ def describe_collection(name):
 
 def construct_stac_collection(collectionName):
     logging.info("[*] Constructing the metadata for {}".format(collectionName))
+    if USE_CACHED_COLLECTIONS:
+        if os.path.isfile(METADATA_FOLDER + '/CACHE/' + collectionName + '.json'):
+            f = open(METADATA_FOLDER + '/CACHE/' + collectionName + '.json')
+            with open(METADATA_FOLDER + '/CACHE/' + collectionName+ '.json') as collection:
+                stacCollection = json.load(collection)
+                return stacCollection
+            
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName)
     stacCollection = res.json()
     metadata = None
