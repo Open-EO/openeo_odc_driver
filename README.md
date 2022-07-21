@@ -7,18 +7,36 @@ OpenEO processing engine written in Python based on OpenDataCube, Xarray and Das
 </p>
 
 # Installation
+
 ## Step 1: Clone the repository
-```
+```sh
 git clone https://github.com/SARScripts/openeo_odc_driver.git
 cd openeo_odc_driver
 ```
+
 ## Step 2: Prepare the python environment
-```
+
+New ad-hoc conda environment:
+```sh
 conda env create -f environment.yml
 conda activate openeo_odc_driver
 git clone https://github.com/clausmichele/openeo-pg-parser-python.git
 cd openeo-pg-parser-python
 pip install .
+```
+
+Alternatively, on existing environment:
+```sh
+# pip libraries
+python -m pip install geopandas gdal sklearn rioxarray dea_tools
+
+# openEO parser
+git clone https://github.com/Open-EO/openeo-pg-parser-python
+cd openeo-pg-parser-python
+python setup.py install
+
+# odc-algo/odc-aws
+python -m pip install --extra-index-url="https://packages.dea.ga.gov.au" odc-algo odc-aws
 ```
 
 ## Step 3:
@@ -28,7 +46,7 @@ Modify the code with your system's details:
 DATACUBE_EXPLORER_ENDPOINT = "http://0.0.0.0:9000"
 OPENDATACUBE_CONFIG_FILE = ""
 ```
-2. In [odc_wrapper.py](https://github.com/SARScripts/openeo_odc_driver/blob/master/odc_wrapper.py) you have to insert the OpenDatcube config file path:
+2. In [odc_wrapper.py](https://github.com/SARScripts/openeo_odc_driver/blob/master/odc_wrapper.py) you have to insert the path of the OpenDataCube config file `datacube.conf`:
 ```
 OPENDATACUBE_CONFIG_FILE = ""
 ```
@@ -40,7 +58,7 @@ TMP_FOLDER_PATH        = '' # Has to be accessible from all the Dask workers
 If the environment creation step fails please create a Python 3.7 environment environment with the following libraries:
 gdal, xarray, rioxarray, dask, numpy, scipy, opencv and their dependencies.
 ## Step 4: Start the web server:
-```
+```sh
 gunicorn -c gunicorn.conf.py odc_backend:app
 ```
 
@@ -94,10 +112,3 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 - coherence
 - geocoding
 - radar_mask
-
-
-
-
-
-
-
