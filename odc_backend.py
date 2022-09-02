@@ -209,7 +209,7 @@ def construct_stac_collection(collectionName):
         list_keys.remove('location')
         try:
             for key in list_keys:
-                if len(items['features'][0]['assets'][key]['eo:bands'])>1:
+                if len(items['features'][0]['assets'][key]['eo:bands'])>=1:
                     for b in items['features'][0]['assets'][key]['eo:bands']:
                         bands_list.append(b)
                 else:
