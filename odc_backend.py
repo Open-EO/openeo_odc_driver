@@ -38,11 +38,11 @@ app = Flask('openeo_odc_driver')
 
 @app.errorhandler(500)
 def error500(error):
-    return error, 500 
+    return error, 500
 
 @app.errorhandler(400)
 def error400(error):
-    return error, 400 
+    return error, 400
 
 @app.route('/graph', methods=['POST'])
 def process_graph():
@@ -52,7 +52,7 @@ def process_graph():
         return jsonify({"output":eo.tmpFolderPath.split('/')[-1] + "/result"+eo.outFormat})
     except Exception as e:
         return error400("ODC engine error in process: " + str(e))
-    
+
 @app.route('/collections', methods=['GET'])
 def list_collections():
     if USE_CACHED_COLLECTIONS:
@@ -85,7 +85,7 @@ def describe_collection(name):
                 return jsonify(stacCollection)
 
     stacCollection = construct_stac_collection(name)
-        
+
     return jsonify(stacCollection)
 
 def construct_stac_collection(collectionName):
@@ -96,7 +96,7 @@ def construct_stac_collection(collectionName):
             with open(METADATA_FOLDER + '/CACHE/' + collectionName+ '.json') as collection:
                 stacCollection = json.load(collection)
                 return stacCollection
-            
+
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName)
     stacCollection = res.json()
     metadata = None
@@ -104,7 +104,7 @@ def construct_stac_collection(collectionName):
         additional_metadata = open(METADATA_FOLDER + '/SUPP/' + collectionName + '_supp_metadata.json')
         metadata = json.load(additional_metadata)
 
-    stacCollection['stac_extensions'] = ['datacube']         
+    stacCollection['stac_extensions'] = ['datacube']
     stacCollection.pop('properties')
     stacCollection['license'] = 'CC-BY-4.0'
     stacCollection['providers'] = [{'name': 'Eurac EO ODC', 'url': 'http://www.eurac.edu/', 'roles': ['producer','host']}]
@@ -200,20 +200,22 @@ def construct_stac_collection(collectionName):
         if 'crs' in metadata.keys():
             stacCollection['cube:dimensions']['X']['reference_system'] = metadata['crs']
             stacCollection['cube:dimensions']['Y']['reference_system'] = metadata['crs']
-    
+
     ### BANDS FROM DATACUBE-EXPLORER IF NOT ALREADY PROVIDED IN THE SUPP METADATA
     bands_list = []
     try:
         keys = items['features'][0]['assets'].keys()
         list_keys = list(keys)
-        list_keys.remove('location')
+        if 'location' in list_keys: list_keys.remove('location')
         try:
             for key in list_keys:
-                if len(items['features'][0]['assets'][key]['eo:bands'])>=1:
-                    for b in items['features'][0]['assets'][key]['eo:bands']:
-                        bands_list.append(b)
-                else:
-                    bands_list.append(items['features'][0]['assets'][key]['eo:bands'][0])
+                for b in items['features'][0]['assets'][key]['eo:bands']:
+                    name = b
+                    # odc explorer different outputs on different versions:
+                    if type(b) is dict:
+                        assert "name" in b
+                        name = b["name"]
+                    bands_list.append(name)
             stacCollection['cube:dimensions']['bands'] = {}
             stacCollection['cube:dimensions']['bands']['type'] = 'bands'
             stacCollection['cube:dimensions']['bands']['values'] = bands_list
