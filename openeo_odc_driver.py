@@ -1029,7 +1029,7 @@ class OpenEO():
                                 equal_bands = (cube1_bands == cube2_bands)
                             except:
                                 equal_bands = False
-                        if equal_bands:
+                        if equal_bands and 'time' in cube1_dims: # ..or cube2_dims, they're equal here
                             # Simple case: same bands in both datacubes
                             logging.info("Simple case: same bands in both datacubes")
                             logging.info("We need to check if the timestep are different, if yes we can merge directly")
