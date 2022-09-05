@@ -127,7 +127,7 @@ class OpenEO():
                     for i in range(0,len(self.graph)+1):
                         if not self.process_node(i):
                             logging.info('[*] Processing finished!')
-                            logging.info('[*] Total elaspsed time: {}'.format(time() - self.start))
+                            logging.info('[*] Total elapsed time: {}'.format(time() - self.start))
                             break
         except Exception as e:
             raise e
@@ -1060,8 +1060,8 @@ class OpenEO():
                             for v in cube1_bands:
                                 if v in cube2_bands: common_band=True
                             if common_band:
-                                #Complicate case where overlap_resolver has to be appliead only on one or some bands
-                                logging.info("Complicate case where overlap_resolver has to be appliead only on one or some bands")
+                                #Complicate case where overlap_resolver has to be applied only on one or some bands
+                                logging.info("Complicate case where overlap_resolver has to be applied only on one or some bands")
                                 raise Exception("[!] Trying to merge two datacubes with one or more common bands, not supported yet!")
                             else:
                                 #Simple case where all the bands are different and we can just concatenate the datacubes without overlap resolver
