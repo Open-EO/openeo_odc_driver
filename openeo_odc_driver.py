@@ -1850,7 +1850,7 @@ class OpenEO():
 #                     del(self.partialResults)
                     return 0
                 
-                if outFormat.lower == 'json':
+                if outFormat.lower() == 'json':
                     self.outFormat = '.json'
                     self.mimeType = 'application/json'
                     if isinstance(self.partialResults[source],gpd.geodataframe.GeoDataFrame):
@@ -1863,7 +1863,7 @@ class OpenEO():
                         return 
 
                 else:
-                    raise Exception("[!] Output format not recognized/implemented!")
+                    raise Exception("[!] Output format not recognized/implemented: {0}".format(outFormat))
                 
                 return 0 # Save result is the end of the process graph
             
