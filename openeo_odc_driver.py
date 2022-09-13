@@ -621,12 +621,22 @@ class OpenEO():
 
             if processName == 'filter_spatial':
                 source = node.arguments['data']['from_node']
-                gdf = gpd.GeoDataFrame.from_features(node.arguments['geometries']['features'])
-                ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
-                gdf = gdf.set_crs(4326)
+                try:
+                    gdf = gpd.GeoDataFrame.from_features(node.arguments['geometries']['features'])
+                    ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
+                    gdf = gdf.set_crs(4326)
+                except:
+                    try:
+                        coords = node.arguments['geometries']['coordinates']
+                        print(coords)
+                        polygon = Polygon([tuple(c) for c in coords[0]])
+                        gdf = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon])
+                    except Exception as e:
+                        raise(e) 
                 gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))
                 ## Clip the data and keep only the data within the polygons
                 self.partialResults[node.id] = self.partialResults[source].rio.clip(gdf_utm.geometry, drop=True)
+
 
             if processName == 'max':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the max
