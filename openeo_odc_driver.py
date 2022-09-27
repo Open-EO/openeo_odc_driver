@@ -1820,6 +1820,14 @@ class OpenEO():
                             raise Exception("[!] Not possible to write a 4-dimensional GeoTiff, use NetCDF instead.")
                     else:
                         self.partialResults[node.id] = self.partialResults[source] 
+                    
+                    # This is required as a workaround to this issue: https://github.com/Open-EO/openeo-web-editor/issues/280
+                    ### Start of workaround
+                    if 'y' in self.partialResults[node.id].dims:
+                        if len(self.partialResults[node.id].y)>1:
+                            if self.partialResults[node.id].y[0] < self.partialResults[node.id].y[-1]:
+                                self.partialResults[node.id] = self.partialResults[node.id].isel(y=slice(None, None, -1))
+                    ### End of workaround
                     self.partialResults[node.id].attrs['crs'] = self.crs
                     if 'variable' in self.partialResults[node.id].dims:
                         self.partialResults[node.id] = self.partialResults[node.id].to_dataset(dim='variable')
