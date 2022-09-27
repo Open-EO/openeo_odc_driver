@@ -482,15 +482,12 @@ class OpenEO():
                     self.partialResults[node.id] = x != y       
                 elif processName == 'log':
                     base = float(node.arguments['base'])
-                    if isinstance(x,float) or isinstance(x,int):
-                        self.partialResults[node.id] = np.log(x)/np.log(base)
-                    else:    
-                        self.partialResults[node.id] = xr.ufuncs.log(x)/xr.ufuncs.log(base) 
+                    self.partialResults[node.id] = np.log(x)/np.log(base) 
                 elif processName == 'ln':
                     if isinstance(x,float) or isinstance(x,int):
                         self.partialResults[node.id] = np.ln(x)
                     else:    
-                        self.partialResults[node.id] = xr.ufuncs.ln(x)
+                        self.partialResults[node.id] = np.ln(x)
 
             if processName == 'not':
                 if isinstance(node.arguments['x'],float) or isinstance(node.arguments['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
@@ -1219,7 +1216,7 @@ class OpenEO():
                     valueVal = self.partialResults[value]         
 
                 tmpAccept = valueVal * acceptVal
-                tmpReject = xr.ufuncs.logical_not(valueVal) * rejectVal
+                tmpReject = np.logical_not(valueVal) * rejectVal
                 self.partialResults[node.id] = tmpAccept + tmpReject     
 
             if processName == 'apply':
@@ -1252,7 +1249,7 @@ class OpenEO():
                     mask = self.partialResults[maskSource].min(dim='variable')
                 else:
                     mask = self.partialResults[maskSource]
-                self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(mask))
+                self.partialResults[node.id] = self.partialResults[dataSource].where(np.logical_not(mask))
                 if 'replacement' in node.arguments and node.arguments['replacement'] is not None:
                         burnValue  = node.arguments['replacement']
                         if isinstance(burnValue,int) or isinstance(burnValue,float):
