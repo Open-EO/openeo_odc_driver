@@ -1741,6 +1741,13 @@ class OpenEO():
                     self.mimeType = 'image/png'
                     import cv2
                     self.partialResults[source] = self.partialResults[source].fillna(0)
+                    # This is required as a workaround to this issue: https://github.com/Open-EO/openeo-web-editor/issues/280
+                    ### Start of workaround
+                    if 'y' in self.partialResults[source].dims:
+                        if len(self.partialResults[source].y)>1:
+                            if self.partialResults[source].y[0] < self.partialResults[source].y[-1]:
+                                self.partialResults[source] = self.partialResults[source].isel(y=slice(None, None, -1))
+                    ### End of workaround
                     size = None; red = None; green = None; blue = None; gray = None
                     if 'options' in node.arguments:
                         if 'size' in node.arguments['options']:
