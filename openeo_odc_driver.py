@@ -1887,7 +1887,7 @@ class OpenEO():
 #                     logging.info('refactor_data')
 #                     tmp = self.refactor_data(self.partialResults[source])
                     tmp = self.partialResults[source]
-                    tmp = tmp.rio.write_crs(self.crs)
+                    # tmp = tmp.rio.write_crs(self.crs)
 #                     tmp.attrs = self.partialResults[source].attrs
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
@@ -1901,8 +1901,8 @@ class OpenEO():
                         logging.info("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
-                        if 'grid_mapping' in tmp.attrs:
-                            tmp.attrs.pop('grid_mapping', None)
+                        # if 'grid_mapping' in tmp.attrs:
+                        #     tmp.attrs.pop('grid_mapping', None)
                         if 'units' in tmp.time.attrs:
                             tmp.time.attrs.pop('units', None)
                         
