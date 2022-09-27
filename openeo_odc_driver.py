@@ -604,16 +604,27 @@ class OpenEO():
             if processName == 'aggregate_spatial':
                 source = node.arguments['data']['from_node']
                 geometries = node.arguments['geometries']
-                for feature in geometries['features']:
-                    if 'properties' not in feature:
-                        feature['properties'] = {}
-                    elif feature['properties'] is None:
-                        feature['properties'] = {}
-                gdf = gpd.GeoDataFrame.from_features(geometries['features'])
-
-                ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
-                gdf = gdf.set_crs(4326)
-                gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))
+                try:
+                    for feature in geometries['features']:
+                        if 'properties' not in feature:
+                            feature['properties'] = {}
+                        elif feature['properties'] is None:
+                            feature['properties'] = {}
+                except:
+                    pass
+                try:
+                    gdf = gpd.GeoDataFrame.from_features(node.arguments['geometries']['features'])
+                    ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
+                    gdf = gdf.set_crs(4326)
+                except:
+                    try:
+                        coords = node.arguments['geometries']['coordinates']
+                        polygon = Polygon([tuple(c) for c in coords[0]])
+                        gdf = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon])
+                    except Exception as e:
+                        raise(e) 
+                gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))     
+                
                 target_dimension = 'result'
                 if 'target_dimension' in node.arguments:
                     target_dimension = node.arguments['target_dimension']
@@ -1890,7 +1901,11 @@ class OpenEO():
                         logging.info("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
-                        tmp.time.attrs.pop('units', None)
+                        if 'grid_mapping' in tmp.attrs:
+                            tmp.attrs.pop('grid_mapping', None)
+                        if 'units' in tmp.time.attrs:
+                            tmp.time.attrs.pop('units', None)
+                        
                         if self.returnFile:
                             tmp.to_netcdf(self.tmpFolderPath + "/result.nc")
                         else:
@@ -1911,7 +1926,7 @@ class OpenEO():
                     else:
                         self.partialResults[node.id] = self.partialResults[source].to_dict()
                         with open(self.tmpFolderPath + "/result.json", 'w') as outfile:
-                            json.dump(self.partialResults[node.id],outfile) #indent fix
+                            json.dump(self.partialResults[node.id],outfile,default=str)
                         return 
 
                 else:
@@ -1936,3 +1951,5 @@ class OpenEO():
         tmp = xr.merge(dataset_list)
         tmp.attrs = data.attrs
         return tmp
+
+        
