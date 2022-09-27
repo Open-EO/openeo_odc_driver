@@ -283,8 +283,38 @@ class OpenEO():
                         elif processName == 'cos':
                             self.partialResults[node.id] = "np.cos(" + x + ")"
                     return 1
+
                 
+            if processName == 'run_udf':
+                from openeo_r_udf import udf_lib
+                parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
+                if 'from_node' in node.arguments['data']:
+                    source = node.arguments['data']['from_node']
+                elif 'from_parameter' in node.arguments['data']:
+                    source = node.parent_process.arguments['data']['from_node']
+                else:
+                    logging.info('ERROR')
+
+                udf_dim = None
+                if parent.dimension in ['t','temporal','DATE']:
+                    udf_dim = 'time'
+                elif parent.dimension in ['bands']:
+                    udf_dim = 'variable'
+                spatial_ref_dim = 'spatial_ref'
+
+                self.partialResults[source] = self.partialResults[source].drop(spatial_ref_dim)
+                print(self.partialResults[source])
                 
+                input_data = self.partialResults[source].compute()
+                if 'time' in input_data:
+                    input_data['time'] = input_data['time'].astype('str')
+
+                self.partialResults[node.id] = udf_lib.execute_udf(process=parent.process_id,
+                                                          udf_path=node.arguments['udf'],
+                                                          data=input_data,
+                                                          dimension=udf_dim,
+                                                          context=node.arguments['context'])
+                                
             if processName == 'resample_cube_spatial':
                 target = node.arguments['target']['from_node']
                 source = node.arguments['data']['from_node']
