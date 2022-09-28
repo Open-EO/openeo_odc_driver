@@ -1948,10 +1948,9 @@ class OpenEO():
                                 # Return dict with dimension as key and bands as columns
                                 for j in range(len(data[dims_no_bands[0]])):
                                     index = str(data[dims_no_bands[0]][j].values)
-                                    data_list = []
+                                    data_list = {}
                                     for i,b in enumerate(data[bands_dim].values):
-                                        print(data.loc[{bands_dim:b,dims_no_bands[0]:index}].values)
-                                        data_list.append([data.loc[{bands_dim:b,dims_no_bands[0]:index}].values])
+                                        data_list[b] = [data.loc[{bands_dim:b,dims_no_bands[0]:index}].values]
                                     data_dict[index] = data_list
                             else:
                                 # Return dict with dimension as key and value as column
