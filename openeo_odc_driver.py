@@ -610,15 +610,17 @@ class OpenEO():
                             feature['properties'] = {}
                         elif feature['properties'] is None:
                             feature['properties'] = {}
-                except:
+                except Exception as e:
+                    print(e)
                     pass
                 try:
-                    gdf = gpd.GeoDataFrame.from_features(node.arguments['geometries']['features'])
+                    gdf = gpd.GeoDataFrame.from_features(geometries['features'])
                     ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
                     gdf = gdf.set_crs(4326)
-                except:
+                except Exception as e:
+                    print(e)
                     try:
-                        coords = node.arguments['geometries']['coordinates']
+                        coords = geometries['coordinates']
                         polygon = Polygon([tuple(c) for c in coords[0]])
                         gdf = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon])
                     except Exception as e:
