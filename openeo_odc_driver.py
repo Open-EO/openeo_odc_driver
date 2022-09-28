@@ -1924,9 +1924,44 @@ class OpenEO():
                         self.partialResults[source].to_file(self.tmpFolderPath + "/result.json", driver="GeoJSON")
                         return
                     else:
-                        self.partialResults[node.id] = self.partialResults[source].to_dict()
+                        data = self.partialResults[source].compute()
+                        bands_dim = 'variable'
+                        dims = list(data.dims)
+                        if bands_dim in dims:
+                            dims_no_bands = dims.copy()
+                            dims_no_bands.remove(bands_dim)
+                        else:
+                            dims_no_bands = dims
+
+                        n_dims = len(dims_no_bands)
+                        data_dict = {}
+                        if n_dims==0:
+                            if bands_dim in dims:
+                                # Return dict with bands as keys
+                                for i,b in enumerate(data[bands_dim].values):
+                                    data_dict[b] = [[data.loc[{bands_dim:b}].item(0)]]
+                            else:
+                                # This should be a single value
+                                data_dict['0'] = [[data.item(0)]]
+                        elif n_dims==1:
+                            if bands_dim in dims:
+                                # Return dict with dimension as key and bands as columns
+                                for j in range(len(data[dims_no_bands[0]])):
+                                    index = str(data[dims_no_bands[0]][j].values)
+                                    data_list = []
+                                    for i,b in enumerate(data[bands_dim].values):
+                                        print(data.loc[{bands_dim:b,dims_no_bands[0]:index}].values)
+                                        data_list.append([data.loc[{bands_dim:b,dims_no_bands[0]:index}].values])
+                                    data_dict[index] = data_list
+                            else:
+                                # Return dict with dimension as key and value as column
+                                for j in range(len(data[dims_no_bands[0]])):
+                                    index = str(data[dims_no_bands[0]][j].values)
+                                    data_dict[index] = [[data.loc[{dims_no_bands[0]:index}].values]]
+                        else:
+                            data_dict = data.to_dict()
                         with open(self.tmpFolderPath + "/result.json", 'w') as outfile:
-                            json.dump(self.partialResults[node.id],outfile,default=str)
+                            json.dump(data_dict,outfile,default=str)
                         return 
 
                 else:
