@@ -15,3 +15,7 @@ LabelsNotEnumerated = "LabelsNotEnumerated - The dimension labels are not enumer
 LabelMismatch = "LabelMismatch - The number of labels in the parameters `source` and `target` don't match."
 LabelNotAvailable = "LabelNotAvailable - A label with the specified name does not exist."
 LabelExists = "LabelExists - A label with the specified name exists."
+
+#quantiles
+QuantilesParameterMissing = "QuantilesParameterMissing - The process `quantiles` requires either the `probabilities` or `q` parameter to be set."
+QuantilesParameterConflict = "QuantilesParameterConflict - The process `quantiles` only allows that either the `probabilities` or the `q` parameter is set."

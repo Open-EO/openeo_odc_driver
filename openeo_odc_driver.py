@@ -818,8 +818,62 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].std('y')
                     else:
                         self.partialResults[node.id] = self.partialResults[source]
-                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))
-            
+                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))   
+                        
+            if processName == 'quantiles':
+                parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the quantiles
+                if parent.process_id != 'apply_dimension':
+                    raise Exception(f'The quantiles process must be used inside an apply_dimension process and not in {parent.process_id}')
+                    
+                if 'from_node' in node.arguments['data']:
+                    source = node.arguments['data']['from_node']
+                elif 'from_parameter' in node.arguments['data']:
+                    source = node.parent_process.arguments['data']['from_node']
+                else:
+                    logging.info('ERROR')
+                    
+                    
+                if 'dimension' in parent.arguments and parent.arguments['dimension'] is not None:
+                    dim = parent.arguments['dimension']
+                else:
+                    raise Exception(DimensionNotAvailable)   
+                
+                target_dimension = None
+                if 'target_dimension' in parent.arguments and parent.arguments['target_dimension'] is not None:
+                    target_dimension = parent.arguments['target_dimension']
+                    
+                p = None
+                q = None
+                
+                if 'probabilities' in node.arguments and node.arguments['probabilities']!=[]:
+                    p = node.arguments['probabilities']
+                if 'q' in node.arguments:
+                    q = node.arguments['q']
+                if q is not None and p is not None:
+                    raise Exception(QuantilesParameterConflict)
+                if q is None and p is None:
+                    raise Exception(QuantilesParameterMissing)
+                    
+                if q is not None:
+                    p = list(np.arange(0, 1, 1./q))[1:]
+                                
+                if dim in ['t','temporal','DATE','time'] and 'time' in self.partialResults[source].dims:
+                    dim = 'time'
+                elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
+                    dim = 'variable'
+                elif dim in ['x'] and 'x' in self.partialResults[source].dims:
+                    dim = 'x'
+                elif dim in ['y'] and 'y' in self.partialResults[source].dims:
+                    dim = 'y'
+                else:
+                    raise Exception(DimensionNotAvailable)
+                
+                self.partialResults[node.id] = self.partialResults[source].chunk(dict(time=-1)).quantile(np.array(p), dim=dim, skipna=True)
+                if target_dimension is not None:
+                    self.partialResults[node.id] = self.partialResults[node.id].rename({'quantile':target_dimension})
+                else:
+                    self.partialResults[node.id] = self.partialResults[node.id].rename({'quantile':dim})
+                    
             if processName == 'aggregate_temporal_period':
                 source = node.arguments['data']['from_node']
                 reducer = self.partialResults[node.arguments['reducer']['from_node']]
