@@ -19,24 +19,7 @@ cd openeo_odc_driver
 New ad-hoc conda environment:
 ```sh
 conda env create -f environment.yml
-conda activate openeo_odc_driver
-git clone https://github.com/clausmichele/openeo-pg-parser-python.git
-cd openeo-pg-parser-python
-pip install .
-```
-
-Alternatively, on existing environment:
-```sh
-# pip libraries
-python -m pip install geopandas gdal sklearn rioxarray dea_tools
-
-# openEO parser
-git clone https://github.com/Open-EO/openeo-pg-parser-python
-cd openeo-pg-parser-python
-python setup.py install
-
-# odc-algo/odc-aws
-python -m pip install --extra-index-url="https://packages.dea.ga.gov.au" odc-algo odc-aws
+conda activate openeo_odc
 ```
 
 ## Step 3:
