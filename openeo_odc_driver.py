@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   23/03/2022
+# Date:   20/10/2022
 
 def warn(*args, **kwargs):
     pass
@@ -1943,7 +1943,7 @@ class OpenEO():
 #                     logging.info('refactor_data')
 #                     tmp = self.refactor_data(self.partialResults[source])
                     tmp = self.partialResults[source]
-                    # tmp = tmp.rio.write_crs(self.crs)
+                      tmp = tmp.rio.write_crs(self.crs)
 #                     tmp.attrs = self.partialResults[source].attrs
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
@@ -1957,8 +1957,6 @@ class OpenEO():
                         logging.info("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
-                        # if 'grid_mapping' in tmp.attrs:
-                        #     tmp.attrs.pop('grid_mapping', None)
                         if 'units' in tmp.time.attrs:
                             tmp.time.attrs.pop('units', None)
                         
@@ -1970,7 +1968,6 @@ class OpenEO():
                         logging.info(e)
                         logging.info("Wrtiting netcdf failed!")
                         pass
-#                     del(self.partialResults)
                     return 0
                 
                 if outFormat.lower() == 'json':
@@ -2031,15 +2028,6 @@ class OpenEO():
         except Exception as e:
             logging.info(e)
             raise Exception(processName + '\n' + str(e))
-    
-    def refactor_data(self,data):
-        # The following code is required to recreate a Dataset from the final result as Dataarray, to get a well formatted netCDF
-        dataset_list = []
-        data.name = None
-        for var in data['variable'].values:
-            dataset_list.append(data.loc[dict(variable=var)].to_dataset(name=var).drop('variable'))
-        tmp = xr.merge(dataset_list)
-        tmp.attrs = data.attrs
-        return tmp
+   
 
         
