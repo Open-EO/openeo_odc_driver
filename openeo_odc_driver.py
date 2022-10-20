@@ -1943,7 +1943,7 @@ class OpenEO():
 #                     logging.info('refactor_data')
 #                     tmp = self.refactor_data(self.partialResults[source])
                     tmp = self.partialResults[source]
-                      tmp = tmp.rio.write_crs(self.crs)
+                    tmp = tmp.rio.write_crs(self.crs)
 #                     tmp.attrs = self.partialResults[source].attrs
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
