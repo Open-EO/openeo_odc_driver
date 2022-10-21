@@ -50,6 +50,9 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 ## aggregate & resample
 - resample_cube_temporal
 - resample_cube_spatial
+- aggregate_spatial
+- aggregate_spatial_window
+- aggregate_temporal_period
 ## arrays
 - array_element
 ## comparison
@@ -62,13 +65,21 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 - neq
 ## cubes
 - load_collection
-- save_result (PNG,GTIFF,NETCDF)
-- reduce_dimension (dimensions: t (or temporal), bands)
+- save_result (PNG,GTIFF,NETCDF,JSON)
+- reduce_dimension
+- add_dimension
+- apply_dimension
 - filter_bands
 - filter_temporal
+- filter_spatial
+- filter_bbox
 - rename_labels
 - merge_cubes
 - apply
+- fit_curve
+- predict_curve
+## arrays
+- array_interpolate_linear
 ## logic
 - and
 - or
@@ -90,8 +101,11 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 - power
 - absolute
 - linear_scale_range
+- log
+- ln
+- quantiles
+- clip
 ## experimental processes (SAR2Cube)
-- aggregate_spatial_window
 - coherence
 - geocoding
 - radar_mask
