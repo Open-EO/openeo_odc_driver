@@ -38,8 +38,8 @@ OPENDATACUBE_CONFIG_FILE = ""
 DASK_SCHEDULER_ADDRESS = ''
 TMP_FOLDER_PATH        = '' # Has to be accessible from all the Dask workers
 ```
-If the environment creation step fails please create a Python 3.7 environment environment with the following libraries:
-gdal, xarray, rioxarray, dask, numpy, scipy, opencv and their dependencies.
+If the environment creation step fails please create a Python 3.8 environment environment with the following libraries:
+datacube, gdal, xarray, rioxarray, dask, numpy, scipy, opencv and their dependencies.
 ## Step 4: Start the web server:
 ```sh
 gunicorn -c gunicorn.conf.py odc_backend:app
