@@ -1,5 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
+
 # Date:   21/10/2022
 
 def warn(*args, **kwargs):
@@ -482,15 +483,12 @@ class OpenEO():
                     self.partialResults[node.id] = x != y       
                 elif processName == 'log':
                     base = float(node.arguments['base'])
-                    if isinstance(x,float) or isinstance(x,int):
-                        self.partialResults[node.id] = np.log(x)/np.log(base)
-                    else:    
-                        self.partialResults[node.id] = xr.ufuncs.log(x)/xr.ufuncs.log(base) 
+                    self.partialResults[node.id] = np.log(x)/np.log(base) 
                 elif processName == 'ln':
                     if isinstance(x,float) or isinstance(x,int):
                         self.partialResults[node.id] = np.ln(x)
                     else:    
-                        self.partialResults[node.id] = xr.ufuncs.ln(x)
+                        self.partialResults[node.id] = np.ln(x)
 
             if processName == 'not':
                 if isinstance(node.arguments['x'],float) or isinstance(node.arguments['x'],int): # We have to distinguish when the input data is a number or a datacube from a previous process
@@ -607,16 +605,29 @@ class OpenEO():
             if processName == 'aggregate_spatial':
                 source = node.arguments['data']['from_node']
                 geometries = node.arguments['geometries']
-                for feature in geometries['features']:
-                    if 'properties' not in feature:
-                        feature['properties'] = {}
-                    elif feature['properties'] is None:
-                        feature['properties'] = {}
-                gdf = gpd.GeoDataFrame.from_features(geometries['features'])
-
-                ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
-                gdf = gdf.set_crs(4326)
-                gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))
+                try:
+                    for feature in geometries['features']:
+                        if 'properties' not in feature:
+                            feature['properties'] = {}
+                        elif feature['properties'] is None:
+                            feature['properties'] = {}
+                except Exception as e:
+                    print(e)
+                    pass
+                try:
+                    gdf = gpd.GeoDataFrame.from_features(geometries['features'])
+                    ## Currently I suppose the input geometries are in EPSG:4326 and the collection is projected in UTM
+                    gdf = gdf.set_crs(4326)
+                except Exception as e:
+                    print(e)
+                    try:
+                        coords = geometries['coordinates']
+                        polygon = Polygon([tuple(c) for c in coords[0]])
+                        gdf = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon])
+                    except Exception as e:
+                        raise(e) 
+                gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))     
+                
                 target_dimension = 'result'
                 if 'target_dimension' in node.arguments:
                     target_dimension = node.arguments['target_dimension']
@@ -808,8 +819,62 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].std('y')
                     else:
                         self.partialResults[node.id] = self.partialResults[source]
-                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))
-            
+                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))   
+                        
+            if processName == 'quantiles':
+                parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the quantiles
+                if parent.process_id != 'apply_dimension':
+                    raise Exception(f'The quantiles process must be used inside an apply_dimension process and not in {parent.process_id}')
+                    
+                if 'from_node' in node.arguments['data']:
+                    source = node.arguments['data']['from_node']
+                elif 'from_parameter' in node.arguments['data']:
+                    source = node.parent_process.arguments['data']['from_node']
+                else:
+                    logging.info('ERROR')
+                    
+                    
+                if 'dimension' in parent.arguments and parent.arguments['dimension'] is not None:
+                    dim = parent.arguments['dimension']
+                else:
+                    raise Exception(DimensionNotAvailable)   
+                
+                target_dimension = None
+                if 'target_dimension' in parent.arguments and parent.arguments['target_dimension'] is not None:
+                    target_dimension = parent.arguments['target_dimension']
+                    
+                p = None
+                q = None
+                
+                if 'probabilities' in node.arguments and node.arguments['probabilities']!=[]:
+                    p = node.arguments['probabilities']
+                if 'q' in node.arguments:
+                    q = node.arguments['q']
+                if q is not None and p is not None:
+                    raise Exception(QuantilesParameterConflict)
+                if q is None and p is None:
+                    raise Exception(QuantilesParameterMissing)
+                    
+                if q is not None:
+                    p = list(np.arange(0, 1, 1./q))[1:]
+                                
+                if dim in ['t','temporal','DATE','time'] and 'time' in self.partialResults[source].dims:
+                    dim = 'time'
+                elif dim in ['bands'] and 'variable' in self.partialResults[source].dims:
+                    dim = 'variable'
+                elif dim in ['x'] and 'x' in self.partialResults[source].dims:
+                    dim = 'x'
+                elif dim in ['y'] and 'y' in self.partialResults[source].dims:
+                    dim = 'y'
+                else:
+                    raise Exception(DimensionNotAvailable)
+                
+                self.partialResults[node.id] = self.partialResults[source].chunk(dict(time=-1)).quantile(np.array(p), dim=dim, skipna=True)
+                if target_dimension is not None:
+                    self.partialResults[node.id] = self.partialResults[node.id].rename({'quantile':target_dimension})
+                else:
+                    self.partialResults[node.id] = self.partialResults[node.id].rename({'quantile':dim})
+                    
             if processName == 'aggregate_temporal_period':
                 source = node.arguments['data']['from_node']
                 reducer = self.partialResults[node.arguments['reducer']['from_node']]
@@ -1219,7 +1284,7 @@ class OpenEO():
                     valueVal = self.partialResults[value]         
 
                 tmpAccept = valueVal * acceptVal
-                tmpReject = xr.ufuncs.logical_not(valueVal) * rejectVal
+                tmpReject = np.logical_not(valueVal) * rejectVal
                 self.partialResults[node.id] = tmpAccept + tmpReject     
 
             if processName == 'apply':
@@ -1252,7 +1317,7 @@ class OpenEO():
                     mask = self.partialResults[maskSource].min(dim='variable')
                 else:
                     mask = self.partialResults[maskSource]
-                self.partialResults[node.id] = self.partialResults[dataSource].where(xr.ufuncs.logical_not(mask))
+                self.partialResults[node.id] = self.partialResults[dataSource].where(np.logical_not(mask))
                 if 'replacement' in node.arguments and node.arguments['replacement'] is not None:
                         burnValue  = node.arguments['replacement']
                         if isinstance(burnValue,int) or isinstance(burnValue,float):
@@ -1744,6 +1809,13 @@ class OpenEO():
                     self.mimeType = 'image/png'
                     import cv2
                     self.partialResults[source] = self.partialResults[source].fillna(0)
+                    # This is required as a workaround to this issue: https://github.com/Open-EO/openeo-web-editor/issues/280
+                    ### Start of workaround
+                    if 'y' in self.partialResults[source].dims:
+                        if len(self.partialResults[source].y)>1:
+                            if self.partialResults[source].y[0] < self.partialResults[source].y[-1]:
+                                self.partialResults[source] = self.partialResults[source].isel(y=slice(None, None, -1))
+                    ### End of workaround
                     size = None; red = None; green = None; blue = None; gray = None
                     if 'options' in node.arguments:
                         if 'size' in node.arguments['options']:
@@ -1823,6 +1895,14 @@ class OpenEO():
                             raise Exception("[!] Not possible to write a 4-dimensional GeoTiff, use NetCDF instead.")
                     else:
                         self.partialResults[node.id] = self.partialResults[source] 
+                    
+                    # This is required as a workaround to this issue: https://github.com/Open-EO/openeo-web-editor/issues/280
+                    ### Start of workaround
+                    if 'y' in self.partialResults[node.id].dims:
+                        if len(self.partialResults[node.id].y)>1:
+                            if self.partialResults[node.id].y[0] < self.partialResults[node.id].y[-1]:
+                                self.partialResults[node.id] = self.partialResults[node.id].isel(y=slice(None, None, -1))
+                    ### End of workaround
                     self.partialResults[node.id].attrs['crs'] = self.crs
                     if 'variable' in self.partialResults[node.id].dims:
                         self.partialResults[node.id] = self.partialResults[node.id].to_dataset(dim='variable')
@@ -1879,7 +1959,9 @@ class OpenEO():
                         logging.info("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
-                        tmp.time.attrs.pop('units', None)
+                        if 'units' in tmp.time.attrs:
+                            tmp.time.attrs.pop('units', None)
+                        
                         if self.returnFile:
                             tmp.to_netcdf(self.tmpFolderPath + "/result.nc")
                         else:
@@ -1888,7 +1970,6 @@ class OpenEO():
                         logging.info(e)
                         logging.info("Wrtiting netcdf failed!")
                         pass
-#                     del(self.partialResults)
                     return 0
                 
                 if outFormat.lower() == 'json':
@@ -1898,9 +1979,43 @@ class OpenEO():
                         self.partialResults[source].to_file(self.tmpFolderPath + "/result.json", driver="GeoJSON")
                         return
                     else:
-                        self.partialResults[node.id] = self.partialResults[source].to_dict()
+                        data = self.partialResults[source].compute()
+                        bands_dim = 'variable'
+                        dims = list(data.dims)
+                        if bands_dim in dims:
+                            dims_no_bands = dims.copy()
+                            dims_no_bands.remove(bands_dim)
+                        else:
+                            dims_no_bands = dims
+
+                        n_dims = len(dims_no_bands)
+                        data_dict = {}
+                        if n_dims==0:
+                            if bands_dim in dims:
+                                # Return dict with bands as keys
+                                for i,b in enumerate(data[bands_dim].values):
+                                    data_dict[b] = [[data.loc[{bands_dim:b}].item(0)]]
+                            else:
+                                # This should be a single value
+                                data_dict['0'] = [[data.item(0)]]
+                        elif n_dims==1:
+                            if bands_dim in dims:
+                                # Return dict with dimension as key and bands as columns
+                                for j in range(len(data[dims_no_bands[0]])):
+                                    index = str(data[dims_no_bands[0]][j].values)
+                                    data_list = {}
+                                    for i,b in enumerate(data[bands_dim].values):
+                                        data_list[b] = [data.loc[{bands_dim:b,dims_no_bands[0]:index}].values]
+                                    data_dict[index] = data_list
+                            else:
+                                # Return dict with dimension as key and value as column
+                                for j in range(len(data[dims_no_bands[0]])):
+                                    index = str(data[dims_no_bands[0]][j].values)
+                                    data_dict[index] = [[data.loc[{dims_no_bands[0]:index}].values]]
+                        else:
+                            data_dict = data.to_dict()
                         with open(self.tmpFolderPath + "/result.json", 'w') as outfile:
-                            json.dump(self.partialResults[node.id],outfile) #indent fix
+                            json.dump(data_dict,outfile,default=str)
                         return 
 
                 else:
@@ -1915,3 +2030,4 @@ class OpenEO():
         except Exception as e:
             logging.info(e)
             raise Exception(processName + '\n' + str(e))
+
