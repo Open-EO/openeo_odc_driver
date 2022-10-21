@@ -55,6 +55,7 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 - aggregate_temporal_period
 ## arrays
 - array_element
+- array_interpolate_linear
 ## comparison
 - if
 - lt
@@ -78,8 +79,8 @@ gunicorn -c gunicorn.conf.py odc_backend:app
 - apply
 - fit_curve
 - predict_curve
-## arrays
-- array_interpolate_linear
+- resample_cube_spatial
+- resample_cube_temporal 
 ## logic
 - and
 - or
