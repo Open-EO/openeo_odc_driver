@@ -286,6 +286,7 @@ class OpenEO():
                     return 1
 
                 
+                
             if processName == 'run_udf':
                 from openeo_r_udf import udf_lib
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
@@ -297,16 +298,15 @@ class OpenEO():
                     logging.info('ERROR')
 
                 udf_dim = None
-                if parent.dimension in ['t','temporal','DATE']:
+                if parent.dimension in ['t','temporal','DATE','time']:
                     udf_dim = 'time'
                 elif parent.dimension in ['bands']:
                     udf_dim = 'variable'
-                spatial_ref_dim = 'spatial_ref'
-
-                self.partialResults[source] = self.partialResults[source].drop(spatial_ref_dim)
-                print(self.partialResults[source])
                 
-                input_data = self.partialResults[source].compute()
+                spatial_ref_dim = 'spatial_ref'
+                if spatial_ref_dim in self.partialResults[source]:
+                    self.partialResults[source] = self.partialResults[source].drop(spatial_ref_dim)
+                input_data = self.partialResults[source]
                 if 'time' in input_data:
                     input_data['time'] = input_data['time'].astype('str')
 
@@ -314,7 +314,9 @@ class OpenEO():
                                                           udf_path=node.arguments['udf'],
                                                           data=input_data,
                                                           dimension=udf_dim,
-                                                          context=node.arguments['context'])
+                                                          context=node.arguments['context']
+                                                           )
+
                                 
             if processName == 'resample_cube_spatial':
                 target = node.arguments['target']['from_node']
