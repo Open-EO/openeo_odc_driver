@@ -296,20 +296,17 @@ class OpenEO():
                     source = node.parent_process.arguments['data']['from_node']
                 else:
                     logging.info('ERROR')
-
                 udf_dim = None
                 if parent.dimension in ['t','temporal','DATE','time']:
                     udf_dim = 'time'
                 elif parent.dimension in ['bands']:
                     udf_dim = 'variable'
-                
                 spatial_ref_dim = 'spatial_ref'
-                if spatial_ref_dim in self.partialResults[source]:
+                if spatial_ref_dim in self.partialResults[source].coords:
                     self.partialResults[source] = self.partialResults[source].drop(spatial_ref_dim)
                 input_data = self.partialResults[source]
-                if 'time' in input_data:
+                if 'time' in input_data.dims:
                     input_data['time'] = input_data['time'].astype('str')
-
                 self.partialResults[node.id] = udf_lib.execute_udf(process=parent.process_id,
                                                           udf_path=node.arguments['udf'],
                                                           data=input_data,
