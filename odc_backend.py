@@ -7,14 +7,18 @@ from dask.distributed import Client
 from openeo_odc_driver import OpenEO
 import argparse
 import os
+import signal
 import sys
 from flask import Flask, request, jsonify, send_file
 import json
 import requests
 import yaml
 import datacube
+import pandas as pd
+import time
 from config import *
 import logging
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -23,6 +27,7 @@ logging.basicConfig(
         logging.StreamHandler(sys.stdout)
     ]
 )
+
 def sar2cube_collection_extent(collectionName):
     dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
     sar2cubeData = dc.load(product = collectionName, dask_chunks={'time':1,'x':2000,'y':2000})
@@ -44,14 +49,50 @@ def error500(error):
 def error400(error):
     return error, 400
 
+
 @app.route('/graph', methods=['POST'])
 def process_graph():
+    if not os.path.exists('jobs_log.csv'):
+        lst = ['job_id', 'pid', 'creation_time']
+        df = pd.DataFrame(columns=lst)
+        df.to_csv('jobs_log.csv')
+    else:
+        df = pd.read_csv('jobs_log.csv',index_col=0)
     jsonGraph = request.json
     try:
+        logging.info('Gunicorn worker pid for this job: {}'.format(os.getpid()))
+        try:
+            jobId = jsonGraph['id']
+        except Exception as e:
+            logging.error(e)
+            jobId = 'None'
+        current_time = time.localtime()
+        time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
+        df = df[df['job_id']!=jobId]
+        df = df.append({'job_id':jobId,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
+        df.to_csv('jobs_log.csv')
         eo = OpenEO(jsonGraph)
-        return jsonify({"output":eo.tmpFolderPath.split('/')[-1] + "/result"+eo.outFormat})
+        return jsonify({'output':eo.tmpFolderPath.split('/')[-1] + '/result'+eo.outFormat})
     except Exception as e:
-        return error400("ODC engine error in process: " + str(e))
+        logging.error(e)
+        return error400('ODC engine error in process: ' + str(e))
+    
+@app.route('/stop_job', methods=['DELETE'])
+def stop_job():
+    try:
+        jobId = request.args['id']
+        logging.info('Job id to cancel: {}'.format(jobId))
+        if os.path.exists('jobs_log.csv'):
+            df = pd.read_csv('jobs_log.csv',index_col=0)
+            pid = df.loc[df['job_id']==jobId]['pid'].values[0]
+            logging.info('Job PID to stop: {}'.format(pid))
+            os.kill(pid, signal.SIGINT)
+            df = df[df['job_id']!=jobId]
+            df.to_csv('jobs_log.csv')
+        return jsonify('ok'), 204
+    except Exception as e:
+        logging.error(e)
+        return error400(str(e))
 
 @app.route('/collections', methods=['GET'])
 def list_collections():
