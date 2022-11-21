@@ -1660,53 +1660,7 @@ class OpenEO():
                 shadow_mask_da['variable'] = 3
                 
                 self.partialResults[node.id] = xr.concat([layover_mask_da,foreshortening_mask_da,shadow_mask_da],dim='variable')
-                
-
-
-            if processName == 'coherence':
-                source = node.arguments['data']['from_node']
-                timedelta = 6
-                if 'timedelta' in node.arguments:
-                    timedelta =  int(node.arguments['timedelta'])
-                else:
-                    pass
-                    
-                # We put the timesteps of the datacube into an array
-                timesteps = self.partialResults[source]['time'].values
-                days_pairs = []
-                # We loop through the timesteps and check where we have 6-12-24 days pairs of dates
-
-                tmp_dataset_timeseries = None
-                for i,t in enumerate(timesteps[:-1]):
-                    for t2 in timesteps[i+1:]:
-                        if(np.timedelta64(t2 - t, 'D')) == np.timedelta64(timedelta,'D'):
-                            days_pairs.append([t,t2])
-                
-                src = self.partialResults[source]
-                for i,pair in enumerate(days_pairs):
-                    logging.info(pair)
-                    VV_q_coh = (src.loc[dict(variable='i_VV',time=pair[0])]*src.loc[dict(variable='i_VV',time=pair[1])]+src.loc[dict(variable='q_VV',time=pair[0])]*src.loc[dict(variable='q_VV',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VV',time=pair[0])]**2+src.loc[dict(variable='q_VV',time=pair[0])]**2)*(src.loc[dict(variable='i_VV',time=pair[1])]**2+src.loc[dict(variable='q_VV',time=pair[1])]**2))
-                    VV_i_coh = (src.loc[dict(variable='i_VV',time=pair[1])]*src.loc[dict(variable='q_VV',time=pair[0])]-src.loc[dict(variable='i_VV',time=pair[0])]*src.loc[dict(variable='q_VV',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VV',time=pair[0])]**2+src.loc[dict(variable='q_VV',time=pair[0])]**2)*(src.loc[dict(variable='i_VV',time=pair[1])]**2+src.loc[dict(variable='q_VV',time=pair[1])]**2))
-                    
-                    VH_q_coh = (src.loc[dict(variable='i_VH',time=pair[0])]*src.loc[dict(variable='i_VH',time=pair[1])]+src.loc[dict(variable='q_VH',time=pair[0])]*src.loc[dict(variable='q_VH',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VH',time=pair[0])]**2+src.loc[dict(variable='q_VH',time=pair[0])]**2)*(src.loc[dict(variable='i_VH',time=pair[1])]**2+src.loc[dict(variable='q_VH',time=pair[1])]**2))
-                    VH_i_coh = (src.loc[dict(variable='i_VH',time=pair[1])]*src.loc[dict(variable='q_VH',time=pair[0])]-src.loc[dict(variable='i_VH',time=pair[0])]*src.loc[dict(variable='q_VH',time=pair[1])])/                    np.sqrt((src.loc[dict(variable='i_VH',time=pair[0])]**2+src.loc[dict(variable='q_VH',time=pair[0])]**2)*(src.loc[dict(variable='i_VH',time=pair[1])]**2+src.loc[dict(variable='q_VH',time=pair[1])]**2))
-                                                 
-                    tmp_dataset = xr.Dataset(
-                        coords={
-                            "y": (["y"],self.partialResults[source].y.values),
-                            "x": (["x"],self.partialResults[source].x.values)
-                        },
-                    )
-                    tmp_dataset = tmp_dataset.assign_coords(time=pair[0]).expand_dims('time')
-                    tmp_dataset['i_VV'] = (("time","y", "x"),VV_i_coh.expand_dims('time').values)
-                    tmp_dataset['q_VV'] = (("time","y", "x"),VV_q_coh.expand_dims('time').values)
-                    tmp_dataset['i_VH'] = (("time","y", "x"),VH_i_coh.expand_dims('time').values)
-                    tmp_dataset['q_VH'] = (("time","y", "x"),VH_q_coh.expand_dims('time').values)
-                    tmp_dataset.to_netcdf(self.tmpFolderPath+'/coh_'+str(t)+'.nc')
-                    tmp_dataset = None
-                    
-                self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/coh_*.nc', combine="by_coords").to_array()
-                
+                                
             if processName == 'fit_curve':
                 ## The fitting function as been converted in a dedicated if statement into a string
                 fitFunction = self.partialResults[node.arguments['function']['from_node']]
