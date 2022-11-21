@@ -122,7 +122,7 @@ class OpenEO():
             # logging.info("[*] Getting the dask cluster client")
             # client = cluster.get_client()
             # logging.info("[*] Dask initialized correctly!")
-            with LocalCluster(n_workers=8, threads_per_worker=1, processes=True,memory_limit='20GB') as cluster:
+            with LocalCluster(n_workers=8, threads_per_worker=1, processes=True,memory_limit='90GB') as cluster:
                 with Client(cluster) as client:
                     dask.config.set({"distributed.comm.timeouts.tcp": "50s"})
                     for i in range(0,len(self.graph)+1):
@@ -303,17 +303,31 @@ class OpenEO():
                     udf_dim = 'variable'
                 spatial_ref_dim = 'spatial_ref'
                 if spatial_ref_dim in self.partialResults[source].coords:
+                    self.crs = self.partialResults[source]['spatial_ref'].item(0)
                     self.partialResults[source] = self.partialResults[source].drop(spatial_ref_dim)
                 input_data = self.partialResults[source]
                 if 'time' in input_data.dims:
                     input_data['time'] = input_data['time'].astype('str')
-                self.partialResults[node.id] = udf_lib.execute_udf(process=parent.process_id,
-                                                          udf_path=node.arguments['udf'],
-                                                          data=input_data,
-                                                          dimension=udf_dim,
-                                                          context=node.arguments['context']
-                                                           )
-
+                # Parallelization config
+                if 'chunk_size' in node.arguments['context']:
+                    chunk_size = node.arguments['context']['chunk_size']
+                else:
+                    chunk_size = 512
+                if 'num_jobs' in node.arguments['context']:
+                    num_jobs = node.arguments['context']['num_jobs']
+                else:
+                    num_jobs = 8
+                logging.info('Chunk size: {} Number of workers: {}'.format(chunk_size,num_jobs))
+                # Define callback function
+                def compute_udf(i,data):
+                    result = udf_lib.execute_udf(parent.process_id, node.arguments['udf'], data.compute(), dimension = udf_dim, context = node.arguments['context'])
+                    result.to_netcdf(self.tmpFolderPath + '/udf_'+str(i)+'.nc')
+                    result = None
+                    return 
+                # # Run UDF executor in parallel
+                input_data_chunked = udf_lib.chunk_cube(input_data, size=chunk_size)
+                results = Parallel(n_jobs=num_jobs)(joblibDelayed(compute_udf)(i,data) for i,data in enumerate(input_data_chunked))
+                self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/udf_*.nc', combine="nested").to_array()
                                 
             if processName == 'resample_cube_spatial':
                 target = node.arguments['target']['from_node']
@@ -1786,14 +1800,14 @@ class OpenEO():
                 
             if processName == 'load_result':
                 from os.path import exists
-                logging.info(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc')
-                if exists(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc'):
+                logging.info(TMP_FOLDER_PATH + node.arguments['id'] + '/result.nc')
+                if exists(TMP_FOLDER_PATH + node.arguments['id'] + '/result.nc'):
                     try:
                         # If the data is has a single band we load it directly as xarray.DataArray, otherwise as Dataset and convert to DataArray
-                        self.partialResults[node.id] = xr.open_dataarray(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={})
+                        self.partialResults[node.id] = xr.open_dataarray(TMP_FOLDER_PATH + node.arguments['id'] + '/result.nc',chunks={},decode_coords='all')
                     except:
                         logging.info("Except")
-                        self.partialResults[node.id] = xr.open_dataset(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={}).to_array()
+                        self.partialResults[node.id] = xr.open_dataset(TMP_FOLDER_PATH + node.arguments['id'] + '/result.nc',chunks={},decode_coords='all').to_array()
                 else:
                     raise Exception("[!] Result of job " + node.arguments['id'] + " not found! It must be a netCDF file.")
                 logging.info(self.partialResults[node.id])
