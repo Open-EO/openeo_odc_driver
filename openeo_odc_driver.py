@@ -93,6 +93,7 @@ class OpenEO():
         self.outFormat = None
         self.returnFile = True
         self.mimeType = None
+        self.run_udf_number = 0
         self.i = 0
         if self.jobId == "None":
             self.tmpFolderPath = TMP_FOLDER_PATH + str(uuid.uuid4())
@@ -319,15 +320,16 @@ class OpenEO():
                     num_jobs = 8
                 logging.info('Chunk size: {} Number of workers: {}'.format(chunk_size,num_jobs))
                 # Define callback function
-                def compute_udf(i,data):
+                def compute_udf(i,data,run_udf_number):
                     result = udf_lib.execute_udf(parent.process_id, node.arguments['udf'], data.compute(), dimension = udf_dim, context = node.arguments['context'])
-                    result.to_netcdf(self.tmpFolderPath + '/udf_'+str(i)+'.nc')
+                    result.to_netcdf(self.tmpFolderPath + '/udf_' + str(run_udf_number) + '_' + str(i) + '.nc')
                     result = None
                     return 
                 # # Run UDF executor in parallel
                 input_data_chunked = udf_lib.chunk_cube(input_data, size=chunk_size)
-                results = Parallel(n_jobs=num_jobs)(joblibDelayed(compute_udf)(i,data) for i,data in enumerate(input_data_chunked))
-                self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/udf_*.nc', combine="nested").to_array()
+                results = Parallel(n_jobs=num_jobs)(joblibDelayed(compute_udf)(i,data,self.run_udf_number) for i,data in enumerate(input_data_chunked))
+                self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/udf_' + str(self.run_udf_number) + '_*.nc', combine="nested").to_array()
+                self.run_udf_number = self.run_udf_number + 1
 
                                 
             if processName == 'resample_cube_spatial':
