@@ -30,10 +30,10 @@ from scipy.spatial import Delaunay
 from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 from scipy.optimize import curve_fit
 import random
+# Image processing
+import cv2
 # Geography
 from pyproj import Proj, transform, Transformer, CRS
-import rasterio
-import rasterio.features
 import geopandas as gpd
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
@@ -67,15 +67,22 @@ try:
     from sar2cube_utils import *
 except:
     pass
-import asyncio
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("odc_openeo_engine.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+
+def init_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler("odc_openeo_engine.log"),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+init_logging()
+logger = logging.getLogger("odc_openeo_engine_logger")
+
+logging.getLogger('rasterio').setLevel(logging.INFO)
+logging.getLogger('datacube').setLevel(logging.INFO)
+logging.getLogger('dask.distributed').setLevel(logging.INFO)
 
 class OpenEO():
     def __init__(self,jsonProcessGraph):
@@ -106,44 +113,24 @@ class OpenEO():
         except:
             pass
         self.start = time()
-        logging.info("[*] Init of dask cluster")
-#         client = Client()
-#         for i in range(0,len(self.graph)+1):
-#             if not self.process_node(i):
-#                 logging.info('[*] Processing finished!')
-#                 logging.info('[*] Elaspsed time: ', time() - start)
-#                 break
-#####################################################
-        # def startLocalCluster():
+        logger.info("[*] Init of dask cluster")
         try:
-            # from dask_gateway import Gateway
-            # gateway = Gateway("http://127.0.0.1:8000")
-            # logging.info("[*] Creating a dask Gateway client")
-            # cluster = gateway.new_cluster()
-            # logging.info("[*] Getting the dask cluster client")
-            # client = cluster.get_client()
-            # logging.info("[*] Dask initialized correctly!")
-            with LocalCluster(n_workers=8, threads_per_worker=1, processes=True,memory_limit='20GB') as cluster:
+            with LocalCluster(n_workers=32, threads_per_worker=1, processes=True,memory_limit='30GB') as cluster:
                 with Client(cluster) as client:
+                    client.run(init_logging)
                     dask.config.set({"distributed.comm.timeouts.tcp": "50s"})
                     for i in range(0,len(self.graph)+1):
                         if not self.process_node(i):
-                            logging.info('[*] Processing finished!')
-                            logging.info('[*] Total elapsed time: {}'.format(time() - self.start))
+                            logger.info('[*] Processing finished!')
+                            logger.info('[*] Total elapsed time: {}'.format(time() - self.start))
                             break
         except Exception as e:
             raise e
-        # loop = asyncio.get_event_loop()
-        # loop.run_until_complete(startLocalCluster())
-        # loop.close()
-        # startLocalCluster()
-#####################################################
-
 
     def process_node(self,i):
         node = self.graph[i]
         processName = node.process_id
-        logging.info("Process id: {} Process name: {}".format(node.id,processName))
+        logger.info("Process id: {} Process name: {}".format(node.id,processName))
         try:
             start_time_proc = time()
             if processName == 'load_collection':
@@ -207,7 +194,7 @@ class OpenEO():
                                 elif len(res) == 2:
                                     resolutions = (res[0],res[1])
                                 else:
-                                    logging.info('error')
+                                    logger.info('error')
 
                             if 'projection' in n.arguments:
                                 if n.arguments['projection'] is not None:
@@ -216,7 +203,7 @@ class OpenEO():
                                         ## TODO: make other projections available
                                         projection = 'epsg:' + str(projection)
                                     else:
-                                        logging.info('This type of reprojection is not yet implemented')
+                                        logger.info('This type of reprojection is not yet implemented')
                                     outputCrs = projection
 
                             if 'method' in n.arguments:
@@ -227,7 +214,7 @@ class OpenEO():
                     raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
                 self.partialResults[node.id] = odc.data.to_array()
                 self.crs = odc.data.crs             # We store the data CRS separately, because it's a metadata we may lose it in the processing
-                logging.info(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
+                logger.info(self.partialResults[node.id]) # The loaded data, stored in a dictionary with the id of the node that has generated it
                         
             if processName == 'resample_spatial':
                 source = node.arguments['data']['from_node']
@@ -290,13 +277,14 @@ class OpenEO():
                 
             if processName == 'run_udf':
                 from openeo_r_udf import udf_lib
+                logging.getLogger('rpy2').setLevel(logging.ERROR)
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
                 if 'from_node' in node.arguments['data']:
                     source = node.arguments['data']['from_node']
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                 udf_dim = None
                 if parent.dimension in ['t','temporal','DATE','time']:
                     udf_dim = 'time'
@@ -318,20 +306,35 @@ class OpenEO():
                     num_jobs = node.arguments['context']['num_jobs']
                 else:
                     num_jobs = 8
-                logging.info('Chunk size: {} Number of workers: {}'.format(chunk_size,num_jobs))
+                if 'vectorized' in node.arguments['context']:
+                    vectorized = int(node.arguments['context']['vectorized'])
+                else:
+                    vectorized = False
+                logger.info('Chunk size: {} Number of workers: {}'.format(chunk_size,num_jobs))
                 # Define callback function
-                def compute_udf(i,data,run_udf_number):
-                    result = udf_lib.execute_udf(parent.process_id, node.arguments['udf'], data.compute(), dimension = udf_dim, context = node.arguments['context'])
-                    result.to_netcdf(self.tmpFolderPath + '/udf_' + str(run_udf_number) + '_' + str(i) + '.nc')
-                    result = None
-                    return 
-                # # Run UDF executor in parallel
-                input_data_chunked = udf_lib.chunk_cube(input_data, size=chunk_size)
-                results = Parallel(n_jobs=num_jobs)(joblibDelayed(compute_udf)(i,data,self.run_udf_number) for i,data in enumerate(input_data_chunked))
-                self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/udf_' + str(self.run_udf_number) + '_*.nc', combine="nested").to_array()
-                self.run_udf_number = self.run_udf_number + 1
-
+                if vectorized:
+                    logger.info("Run R UDF without joblib")
+                    self.partialResults[node.id] = udf_lib.execute_udf(process=parent.process_id,
+                                  udf_path=node.arguments['udf'],
+                                  data=input_data,
+                                  dimension=udf_dim,
+                                  context=node.arguments['context']
+                                   )
+                else:
+                    logger.info("Run R UDF with joblib")
+                    def compute_udf(i,data,run_udf_number):
+                        # logging.getLogger('rpy2').setLevel(logging.ERROR)
+                        result = udf_lib.execute_udf(parent.process_id, node.arguments['udf'], data, dimension = udf_dim, context = node.arguments['context'])
+                        result.to_netcdf(self.tmpFolderPath + '/udf_' + str(run_udf_number) + '_' + str(i) + '.nc')
+                        result = None
+                        return 
+                    # # Run UDF executor in parallel
+                    input_data_chunked = udf_lib.chunk_cube(input_data, size=chunk_size)
+                    results = Parallel(n_jobs=num_jobs)(joblibDelayed(compute_udf)(i,data,self.run_udf_number) for i,data in enumerate(input_data_chunked))
+                    self.partialResults[node.id] = xr.open_mfdataset(self.tmpFolderPath + '/udf_' + str(self.run_udf_number) + '_*.nc', combine="nested").to_array()
+                    self.run_udf_number = self.run_udf_number + 1
                                 
+                
             if processName == 'resample_cube_spatial':
                 target = node.arguments['target']['from_node']
                 source = node.arguments['data']['from_node']
@@ -344,7 +347,7 @@ class OpenEO():
                     import odc.algo
                     self.partialResults[node.id] = odc.algo._warp.xr_reproject(self.partialResults[source].compute(),self.partialResults[target].geobox,resampling=method).compute()
                 except Exception as e:
-                    logging.info(e)
+                    logger.info(e)
                     try:
                         self.partialResults[node.id] = self.partialResults[source].rio.reproject_match(self.partialResults[target],resampling=method)
                     except Exception as e:
@@ -590,7 +593,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                 noLabel = 1
                 if 'label' in node.arguments:
                     if node.arguments['label'] is not None:
@@ -702,7 +705,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     boundary = parent.content['arguments']['boundary']
@@ -721,7 +724,7 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].max('y')
                     else:
                         self.partialResults[node.id] = self.partialResults[source]
-                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))
+                        logger.info('[!] Dimension {} not available in the current data.'.format(dim))
 
             if processName == 'min':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the min
@@ -730,7 +733,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     boundary = parent.content['arguments']['boundary']
@@ -749,7 +752,7 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].min('y')
                     else:
                         self.partialResults[node.id] = self.partialResults[source]
-                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))
+                        logger.info('[!] Dimension {} not available in the current data.'.format(dim))
 
             if processName == 'mean':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the mean
@@ -758,7 +761,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                 self.partialResults[source] = self.partialResults[source].astype(np.float32)
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
@@ -778,7 +781,7 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].mean('y')
                     else:
                         self.partialResults[node.id] = self.partialResults[source]
-                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))
+                        logger.info('[!] Dimension {} not available in the current data.'.format(dim))
 
             if processName == 'median':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the median
@@ -787,7 +790,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                 self.partialResults[source] = self.partialResults[source].astype(np.float32)
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
@@ -807,7 +810,7 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].median('y')
                     else:
                         self.partialResults[node.id] = self.partialResults[source]
-                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))
+                        logger.info('[!] Dimension {} not available in the current data.'.format(dim))
                      
             if processName == 'sd':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the std
@@ -816,7 +819,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                 if parent.content['process_id'] == 'aggregate_spatial_window':
                     xDim, yDim = parent.content['arguments']['size']
                     boundary = parent.content['arguments']['boundary']
@@ -835,7 +838,7 @@ class OpenEO():
                         self.partialResults[node.id] = self.partialResults[source].std('y')
                     else:
                         self.partialResults[node.id] = self.partialResults[source]
-                        logging.info('[!] Dimension {} not available in the current data.'.format(dim))   
+                        logger.info('[!] Dimension {} not available in the current data.'.format(dim))   
                         
             if processName == 'quantiles':
                 parent = node.parent_process # I need to read the parent reducer process to see along which dimension take the quantiles
@@ -847,7 +850,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.info('ERROR')
+                    logger.info('ERROR')
                     
                     
                 if 'dimension' in parent.arguments and parent.arguments['dimension'] is not None:
@@ -932,7 +935,7 @@ class OpenEO():
                     else:
                         raise Exception("The selected reducer is not supported. Please use one of: " + supportedReducers)
                 except Exception as e:
-                    logging.info(e)
+                    logger.info(e)
                     if reducer == 'sum':
                         self.partialResults[node.id] = self.partialResults[source].resample(t=xarrayPeriod).sum()
                     elif reducer == 'product':
@@ -977,7 +980,7 @@ class OpenEO():
                 try:
                     tmp = self.partialResults[source].clip(min=inputMin,max=inputMax)
                 except Exception as e:
-                    logging.info(e)
+                    logger.info(e)
                     try:
                         tmp = self.partialResults[source].compute()
                         tmp = tmp.clip(inputMin,inputMax)
@@ -997,7 +1000,7 @@ class OpenEO():
                     outputMin = node.arguments['min']
                 try:
                     tmp = self.partialResults[source].clip(outputMin,outputMax)
-                    logging.info("[!] DASK CLIP FAILED, COMPUTING VALUES AND TRYING AGAIN")
+                    logger.info("[!] DASK CLIP FAILED, COMPUTING VALUES AND TRYING AGAIN")
                 except:
                     try:
                         tmp = self.partialResults[source].compute()
@@ -1135,12 +1138,12 @@ class OpenEO():
                     # We need to re-chunk the data to avoid errors merging chunked and not chunked data
                     cube1 = cube1.chunk()
                     cube2 = cube2.chunk()
-                logging.info("dimensions are x, y, time, variable.")
+                logger.debug("dimensions are x, y, time, variable.")
                 if cube1_dims == cube2_dims:
                     # We need to check if they have bands
                     if 'variable' in cube1_dims and 'variable' in cube2_dims:
                         # We need to check if the bands are different or there are some common ones
-                        logging.info("We need to check if the bands are different or there are some common ones")
+                        logger.debug("We need to check if the bands are different or there are some common ones")
                         cube1_bands = self.partialResults[cube1]['variable'].values
                         cube2_bands = self.partialResults[cube2]['variable'].values
                         try:
@@ -1152,8 +1155,8 @@ class OpenEO():
                                 equal_bands = False
                         if equal_bands and 'time' in cube1_dims: # ..or cube2_dims, they're equal here
                             # Simple case: same bands in both datacubes
-                            logging.info("Simple case: same bands in both datacubes")
-                            logging.info("We need to check if the timestep are different, if yes we can merge directly")
+                            logger.debug("Simple case: same bands in both datacubes")
+                            logger.debug("We need to check if the timestep are different, if yes we can merge directly")
                             try:
                                 all_timesteps_different = (self.partialResults[cube1].time.values != self.partialResults[cube2].time.values).all()
                             except:
@@ -1165,7 +1168,7 @@ class OpenEO():
                                 self.partialResults[node.id] = xr.concat([self.partialResults[cube1],self.partialResults[cube2]],dim='time')
                             else:
                                 #Overlap resolver required
-                                logging.info("Overlap resolver required")
+                                logger.debug("Overlap resolver required")
                                 if 'overlap_resolver' in node.arguments:
                                     if 'from_node' in node.arguments['overlap_resolver']:
                                         source = node.arguments['overlap_resolver']['from_node']
@@ -1176,30 +1179,30 @@ class OpenEO():
                                     raise Exception(OverlapResolverMissing)
                         else:
                             #Check if at least one band is in common
-                            logging.info("Check if at least one band is in common")
+                            logger.debug("Check if at least one band is in common")
                             common_band = False
                             for v in cube1_bands:
                                 if v in cube2_bands: common_band=True
                             if common_band:
                                 #Complicate case where overlap_resolver has to be applied only on one or some bands
-                                logging.info("Complicate case where overlap_resolver has to be applied only on one or some bands")
+                                logger.debug("Complicate case where overlap_resolver has to be applied only on one or some bands")
                                 raise Exception("[!] Trying to merge two datacubes with one or more common bands, not supported yet!")
                             else:
                                 #Simple case where all the bands are different and we can just concatenate the datacubes without overlap resolver
-                                logging.info("Simple case where all the bands are different and we can just concatenate the datacubes without overlap resolver")
+                                logger.debug("Simple case where all the bands are different and we can just concatenate the datacubes without overlap resolver")
                                 ds1 = self.partialResults[cube1]
                                 ds2 = self.partialResults[cube2]
                                 self.partialResults[node.id] = xr.concat([ds1,ds2],dim='variable')
                     else:
                         # We don't have bands, dimensions are either x,y or x,y,t for both datacubes
-                        logging.info("We don't have bands, dimensions are either x,y or x,y,t for both datacubes")
+                        logger.debug("We don't have bands, dimensions are either x,y or x,y,t for both datacubes")
                         if 'time' in cube1_dims:
                             # TODO: check if the timesteps are the same, if yes use overlap resolver
                             cube1_time = self.partialResults[cube1].time.values
                             cube2_time = self.partialResults[cube2].time.values
                             if (cube1_time == cube2_time):
                                 #Overlap resolver required
-                                logging.info("Overlap resolver required")
+                                logger.debug("Overlap resolver required")
                                 if 'overlap_resolver' in node.arguments:
                                     try:
                                         source = node.arguments['overlap_resolver']['from_node']
@@ -1223,7 +1226,7 @@ class OpenEO():
                             cube2_time = self.partialResults[cube2].t.values
                             if (cube1_time == cube2_time):
                                 #Overlap resolver required
-                                logging.info("Overlap resolver required")
+                                logger.debug("Overlap resolver required")
                                 if 'overlap_resolver' in node.arguments:
                                     try:
                                         source = node.arguments['overlap_resolver']['from_node']
@@ -1243,7 +1246,7 @@ class OpenEO():
                                     raise e
                         else:
                             # We have only x,y (or maybe only x or only y)
-                            logging.info("We have only x,y (or maybe only x or only y)")
+                            logger.debug("We have only x,y (or maybe only x or only y)")
                             # Overlap resolver required
                             if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
                                 source = node.arguments['overlap_resolver']['from_node']
@@ -1257,7 +1260,7 @@ class OpenEO():
                                 # We need to check if they have bands, if yes is still not possible
                                 if 'variable' not in cube1_dims and 'variable' not in cube2_dims:
                                     #Overlap resolver required
-                                    logging.info("Overlap resolver required")
+                                    logger.debug("Overlap resolver required")
                                     if 'overlap_resolver' in node.arguments and 'from_node' in node.arguments['overlap_resolver']:
                                         source = node.arguments['overlap_resolver']['from_node']
                                         self.partialResults[node.id] = self.partialResults[source]
@@ -1539,14 +1542,14 @@ class OpenEO():
                 # grid_x_irregular = None
                 # grid_y_irregular = None
                 
-                logging.info("Geocoding started!")
+                logger.info("Geocoding started!")
                 if 'time' in self.partialResults[source].dims:
                     for t in self.partialResults[source]['time']:
                         geocoded_dataset = None
                         data_t = self.partialResults[source].loc[dict(time=t)]
                         for var in self.partialResults[source]['variable']:
                             if (var.values!='grid_lon' and var.values!='grid_lat'):
-                                logging.info("Geocoding band {} for date {}".format(var.values,t.values))
+                                logger.info("Geocoding band {} for date {}".format(var.values,t.values))
                                 numpy_data = data_t.loc[dict(variable=var)].values
                                 print(numpy_data.shape)
                                 Parallel(n_jobs=12, verbose=51)(
@@ -1564,7 +1567,7 @@ class OpenEO():
                     geocoded_dataset = None
                     for var in self.partialResults[source]['variable']:
                         if (var.values!='grid_lon' and var.values!='grid_lat'):
-                            logging.info("Geocoding band {}".format(var.values))
+                            logger.info("Geocoding band {}".format(var.values))
                             numpy_data = self.partialResults[source].loc[dict(variable=var)].values
                             Parallel(n_jobs=12, verbose=51)(
                                 joblibDelayed(chunked_delaunay_interpolation)(index,
@@ -1590,7 +1593,7 @@ class OpenEO():
                 elif 'from_parameter' in node.arguments['data']:
                     source = node.parent_process.arguments['data']['from_node']
                 else:
-                    logging.error('ERROR')
+                    logger.error('ERROR')
                 
                 if 'foreshortening_th' in node.arguments and node.arguments['foreshortening_th'] is not None:
                     foreshortening_th = float(node.arguments['foreshortening_th'])
@@ -1686,7 +1689,7 @@ class OpenEO():
                     return baseFun
                 ## Generate python fitting function as string 
                 fitFun = build_fitting_functions()
-                logging.info(fitFun)
+                logger.info(fitFun)
                 exec(fitFun,globals())
                 def fit_curve(x,y):
                     index = np.nonzero(y) # We don't consider zero values (masked) for fitting.
@@ -1712,7 +1715,7 @@ class OpenEO():
                 data_dataset['time'] = dates
                      
                 self.partialResults[node.id] = popts3d.compute()
-                logging.info("Elapsed time: ",time() - start)
+                logger.info("Elapsed time: ",time() - start)
                    
             if processName == 'predict_curve':
                 start = time()
@@ -1734,7 +1737,7 @@ class OpenEO():
     return '''+ fitFunction)
                     return baseFun
                 fitFun = build_fitting_functions()
-                logging.info(fitFun)
+                logger.info(fitFun)
                 exec(fitFun,globals())
                 if 'variable' in data.dims:
                     predictedData = xr.Dataset(coords={'time':dates,'y':data.y,'x':data.x})
@@ -1756,28 +1759,27 @@ class OpenEO():
                 self.partialResults[node.id] = predictedData.to_array().transpose('variable','time','y','x')
                 
             if processName == 'load_result':
-                from os.path import exists
-                logging.info(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc')
+                logger.info(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc')
                 if exists(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc'):
                     try:
                         # If the data is has a single band we load it directly as xarray.DataArray, otherwise as Dataset and convert to DataArray
                         self.partialResults[node.id] = xr.open_dataarray(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={})
                     except:
-                        logging.info("Except")
+                        logger.info("Except")
                         self.partialResults[node.id] = xr.open_dataset(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={}).to_array()
                 else:
                     raise Exception("[!] Result of job " + node.arguments['id'] + " not found! It must be a netCDF file.")
-                logging.info(self.partialResults[node.id])
+                logger.info(self.partialResults[node.id])
                 
             if processName == 'save_result':
                 outFormat = node.arguments['format']
                 source = node.arguments['data']['from_node']
-                logging.info(self.partialResults[source])
+                logger.info(self.partialResults[source])
 
                 if outFormat.lower() == 'png':
                     self.outFormat = '.png'
                     self.mimeType = 'image/png'
-                    import cv2
+
                     self.partialResults[source] = self.partialResults[source].fillna(0)
                     # This is required as a workaround to this issue: https://github.com/Open-EO/openeo-web-editor/issues/280
                     ### Start of workaround
@@ -1840,7 +1842,6 @@ class OpenEO():
                 if outFormat.lower() in ['gtiff','geotiff','tif','tiff']:
                     self.outFormat = '.tiff'
                     self.mimeType = 'image/tiff'
-                    import rioxarray
                     
                     if self.partialResults[source].dtype == 'bool':
                         self.partialResults[source] = self.partialResults[source].astype(np.uint8)
@@ -1888,7 +1889,7 @@ class OpenEO():
                 if outFormat.lower() in ['netcdf','nc']:
                     self.outFormat = '.nc'
                     self.mimeType = 'application/octet-stream'
-                    logging.info(node.arguments)
+                    logger.info(node.arguments)
                     if 'options' in node.arguments:
                         if 'dtype' in node.arguments['options']:
                             self.partialResults[source] = self.partialResults[source].astype(node.arguments['options']['dtype'])
@@ -1901,7 +1902,7 @@ class OpenEO():
                                 raise Exception("[!] Provided output path is not valid!")
                             if os.path.exists(outputFolder):
                                 self.tmpFolderPath = outputFile
-                                logging.info("New folder " + str(self.tmpFolderPath))
+                                logger.info("New folder " + str(self.tmpFolderPath))
                                 self.returnFile = False
                             else:
                                 raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
@@ -1925,8 +1926,8 @@ class OpenEO():
                             tmp.to_netcdf(self.tmpFolderPath)
                         return 0
                     except Exception as e:
-                        logging.info(e)
-                        logging.info("Wrtiting netcdf failed, trying another time....")
+                        logger.info(e)
+                        logger.info("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
                         if 'units' in tmp.time.attrs:
@@ -1937,8 +1938,8 @@ class OpenEO():
                         else:
                             tmp.to_netcdf(self.tmpFolderPath)
                     except Exception as e:
-                        logging.info(e)
-                        logging.info("Wrtiting netcdf failed!")
+                        logger.info(e)
+                        logger.info("Wrtiting netcdf failed!")
                         pass
                     return 0
                 
@@ -1993,11 +1994,11 @@ class OpenEO():
                 
                 return 0 # Save result is the end of the process graph
             
-            logging.info("Elapsed time: {}".format(time() - start_time_proc))
+            logger.info("Elapsed time: {}".format(time() - start_time_proc))
             self.listExecutedIds.append(node.id) # Store the processed nodes ids
             return 1 # Go on and process the next node
         
         except Exception as e:
-            logging.info(e)
+            logger.info(e)
             raise Exception(processName + '\n' + str(e))
 
