@@ -102,7 +102,7 @@ class Odc:
             if self.data.equals(xr.Dataset()):
                 raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
         except Exception as e:
-            if (str(e)=='Product has no default CRS. Must specify \'output_crs\' and \'resolution\''):
+            if ('Product has no default CRS' in str(e)):
                 # Identify the most common projection system in the input query
                 crs_query = copy.deepcopy(self.query)
                 crs_query.pop('product')
