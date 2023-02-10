@@ -74,8 +74,8 @@ class Odc:
         if (self.south is not None and self.north is not None and self.east is not None and self.west is not None and not self.sar2cube_collection()):
             if self.crs is not None:
                 query['crs']  = 'epsg:' + str(self.crs)
-                query['x']  = (self.south,self.north)
-                query['y'] = (self.east,self.west)
+                query['y']  = (self.south,self.north)
+                query['x'] = (self.east,self.west)
                 query['output_crs'] = 'epsg:' + str(self.crs)
                 query['resolution'] = [10,10]
             else:
