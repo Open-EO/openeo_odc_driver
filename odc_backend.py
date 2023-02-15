@@ -146,7 +146,8 @@ def construct_stac_collection(collectionName):
         metadata = json.load(additional_metadata)
 
     stacCollection['stac_extensions'] = ['datacube']
-    stacCollection.pop('properties')
+    if 'properties' in stacCollection:
+        stacCollection.pop('properties')
     stacCollection['license'] = 'CC-BY-4.0'
     stacCollection['providers'] = [{'name': 'Eurac EO ODC', 'url': 'http://www.eurac.edu/', 'roles': ['producer','host']}]
     stacCollection['links'] = {}
