@@ -101,6 +101,27 @@ class LoadOdcCollection:
             query['output_crs'] = self.outputCrs
         self.query = query
         
+    def apply_scale_and_offset(self):
+        # Check if there is a band that has a scale or an offset to be applied
+        for band in list(self.data.data_vars):
+            scale_factor = None
+            add_offset = None
+            nodata = None
+            if 'nodata' in self.data[band].attrs:
+                nodata = float(self.data[band].attrs['nodata'])
+            if 'scale_factor' in self.data[band].attrs:
+                scale_factor = float(self.data[band].attrs['scale_factor'])
+            if 'add_offset' in self.data[band].attrs:
+                add_offset = float(self.data[band].attrs['add_offset'])
+            if nodata is not None:
+                self.data[band] = self.data[band].where(self.data[band]!=nodata)
+            if scale_factor != 0 and scale_factor is not None:
+                logging.info(f'Scale factor: {scale_factor}')
+                self.data[band] = self.data[band] * scale_factor
+            if add_offset != 0 and add_offset is not None:
+                logging.info(f'add_offset: {add_offset}')
+                self.data[band] = self.data[band] + add_offset
+    
     def load_collection(self):
         datasets  = self.dc.find_datasets(time=(self.timeStart,self.timeEnd),**self.query)
         self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}             # This let us load the data as Dask chunks instead of numpy arrays
@@ -115,6 +136,7 @@ class LoadOdcCollection:
             self.data = self.dc.load(datasets=datasets,**self.query)
             if self.data.equals(xr.Dataset()):
                 raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
+            self.apply_scale_and_offset()
         except Exception as e:
             if ('Product has no default CRS' in str(e)):
                 # Identify the most common projection system in the input query
@@ -127,6 +149,7 @@ class LoadOdcCollection:
                 self.query['resolution'] = [10,10]
                 self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}
                 self.data = self.dc.load(datasets=datasets,**self.query)
+                self.apply_scale_and_offset()
             else:
                 raise e
 
