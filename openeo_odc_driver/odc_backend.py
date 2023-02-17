@@ -1,45 +1,34 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   11/05/2021
+# Date:   13/02/2023
 
-import dask
-from dask.distributed import Client
-from openeo_odc_driver import OpenEO
-import argparse
 import os
 import signal
 import sys
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify
 import json
 import requests
 import yaml
-import datacube
 import pandas as pd
 import time
-from config import *
 import logging
+
+from openeo_odc_driver import ProcessOpeneoGraph
+from config import *
+# from openeo_odc_driver.config import *
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
-        logging.FileHandler("sar2cube_debug.log"),
+        logging.FileHandler("odc_backend.log"),
         logging.StreamHandler(sys.stdout)
     ]
 )
 
-def sar2cube_collection_extent(collectionName):
-    dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
-    sar2cubeData = dc.load(product = collectionName, dask_chunks={'time':1,'x':2000,'y':2000})
-    zero_lon_mask = sar2cubeData.grid_lon[0]!=0
-    zero_lat_mask = sar2cubeData.grid_lat[0]!=0
-    min_lon = sar2cubeData.grid_lon[0].where(zero_lon_mask).min().values.item(0)
-    min_lat = sar2cubeData.grid_lat[0].where(zero_lat_mask).min().values.item(0)
-    max_lon = sar2cubeData.grid_lon[0].where(zero_lon_mask).max().values.item(0)
-    max_lat = sar2cubeData.grid_lat[0].where(zero_lat_mask).max().values.item(0)
-    return [min_lon,min_lat,max_lon,max_lat]
+_log = logging.getLogger(__name__)
 
-app = Flask('openeo_odc_driver')
+app = Flask(FLASK_APP_NAME)
 
 @app.errorhandler(500)
 def error500(error):
@@ -52,54 +41,54 @@ def error400(error):
 
 @app.route('/graph', methods=['POST'])
 def process_graph():
-    if not os.path.exists('jobs_log.csv'):
+    if not os.path.exists(JOB_LOG_FILE):
         lst = ['job_id', 'pid', 'creation_time']
         df = pd.DataFrame(columns=lst)
-        df.to_csv('jobs_log.csv')
+        df.to_csv(JOB_LOG_FILE)
     else:
-        df = pd.read_csv('jobs_log.csv',index_col=0)
+        df = pd.read_csv(JOB_LOG_FILE,index_col=0)
     jsonGraph = request.json
     try:
-        logging.info('Gunicorn worker pid for this job: {}'.format(os.getpid()))
+        _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
         try:
-            jobId = jsonGraph['id']
+            job_id = jsonGraph['id']
         except Exception as e:
-            logging.error(e)
-            jobId = 'None'
+            _log.error(e)
+            job_id = 'None'
         current_time = time.localtime()
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
-        df = df[df['job_id']!=jobId]
-        df = df.append({'job_id':jobId,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
-        df.to_csv('jobs_log.csv')
-        eo = OpenEO(jsonGraph)
-        return jsonify({'output':eo.tmpFolderPath.split('/')[-1] + '/result'+eo.outFormat})
+        df = df[df['job_id']!=job_id]
+        df = df.append({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
+        df.to_csv(JOB_LOG_FILE)
+        eo = ProcessOpeneoGraph(jsonGraph)
+        return jsonify({'output':eo.tmp_folder_path.split('/')[-1] + '/result'+eo.out_format})
     except Exception as e:
-        logging.error(e)
+        _log.error(e)
         return error400('ODC engine error in process: ' + str(e))
     
 @app.route('/stop_job', methods=['DELETE'])
 def stop_job():
     try:
-        jobId = request.args['id']
-        logging.info('Job id to cancel: {}'.format(jobId))
-        if os.path.exists('jobs_log.csv'):
-            df = pd.read_csv('jobs_log.csv',index_col=0)
-            pid = df.loc[df['job_id']==jobId]['pid'].values[0]
-            logging.info('Job PID to stop: {}'.format(pid))
+        job_id = request.args['id']
+        _log.debug('Job id to cancel: {}'.format(job_id))
+        if os.path.exists(JOB_LOG_FILE):
+            df = pd.read_csv(JOB_LOG_FILE,index_col=0)
+            pid = df.loc[df['job_id']==job_id]['pid'].values[0]
+            _log.debug('Job PID to stop: {}'.format(pid))
             os.kill(pid, signal.SIGINT)
-            df = df[df['job_id']!=jobId]
-            df.to_csv('jobs_log.csv')
+            df = df[df['job_id']!=job_id]
+            df.to_csv(JOB_LOG_FILE)
         return jsonify('ok'), 204
     except Exception as e:
-        logging.error(e)
+        _log.error(e)
         return error400(str(e))
 
 @app.route('/collections', methods=['GET'])
 def list_collections():
     if USE_CACHED_COLLECTIONS:
-        if os.path.isfile(ODC_COLLECTIONS_FILE):
-            f = open(ODC_COLLECTIONS_FILE)
-            with open(ODC_COLLECTIONS_FILE) as collection_list:
+        if os.path.isfile(METADATA_COLLECTIONS_FILE):
+            f = open(METADATA_COLLECTIONS_FILE)
+            with open(METADATA_COLLECTIONS_FILE) as collection_list:
                 stacCollection = json.load(collection_list)
                 return jsonify(stacCollection)
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/products.txt")
@@ -111,17 +100,19 @@ def list_collections():
         currentCollection = construct_stac_collection(d)
         collectionsList.append(currentCollection)
     collections['collections'] = collectionsList
-    with open(ODC_COLLECTIONS_FILE, 'w') as outfile:
+    with open(METADATA_COLLECTIONS_FILE, 'w') as outfile:
         json.dump(collections, outfile)
     return jsonify(collections)
 
 
 @app.route("/collections/<string:name>", methods=['GET'])
 def describe_collection(name):
+    if not os.path.exists(METADATA_CACHE_FOLDER):
+        os.mkdir(METADATA_CACHE_FOLDER)
     if USE_CACHED_COLLECTIONS:
-        if os.path.isfile(METADATA_FOLDER + '/CACHE/' + name + '.json'):
-            f = open(METADATA_FOLDER + '/CACHE/' + name + '.json')
-            with open(METADATA_FOLDER + '/CACHE/' + name + '.json') as collection:
+        if os.path.isfile(METADATA_CACHE_FOLDER + '/' + name + '.json'):
+            f = open(METADATA_CACHE_FOLDER + '/' + name + '.json')
+            with open(METADATA_CACHE_FOLDER + '/' + name + '.json') as collection:
                 stacCollection = json.load(collection)
                 return jsonify(stacCollection)
 
@@ -131,27 +122,29 @@ def describe_collection(name):
 
 def construct_stac_collection(collectionName):
     logging.info("[*] Constructing the metadata for {}".format(collectionName))
+    if not os.path.exists(METADATA_CACHE_FOLDER):
+        os.mkdir(METADATA_CACHE_FOLDER)
     if USE_CACHED_COLLECTIONS:
-        if os.path.isfile(METADATA_FOLDER + '/CACHE/' + collectionName + '.json'):
-            f = open(METADATA_FOLDER + '/CACHE/' + collectionName + '.json')
-            with open(METADATA_FOLDER + '/CACHE/' + collectionName+ '.json') as collection:
+        if os.path.isfile(METADATA_CACHE_FOLDER + '/' + collectionName + '.json'):
+            f = open(METADATA_CACHE_FOLDER + '/' + collectionName + '.json')
+            with open(METADATA_CACHE_FOLDER + '/' + collectionName+ '.json') as collection:
                 stacCollection = json.load(collection)
                 return stacCollection
 
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName)
     stacCollection = res.json()
     metadata = None
-    if os.path.isfile(METADATA_FOLDER + '/SUPP/' + collectionName + '_supp_metadata.json'):
-        additional_metadata = open(METADATA_FOLDER + '/SUPP/' + collectionName + '_supp_metadata.json')
+    if not os.path.exists(METADATA_SUPPLEMENTARY_FOLDER):
+        os.mkdir(METADATA_SUPPLEMENTARY_FOLDER)
+    if os.path.isfile(METADATA_SUPPLEMENTARY_FOLDER + '/' + collectionName + '.json'):
+        additional_metadata = open(METADATA_SUPPLEMENTARY_FOLDER + '/' + collectionName + '.json')
         metadata = json.load(additional_metadata)
 
     stacCollection['stac_extensions'] = ['datacube']
-    if 'properties' in stacCollection:
-        stacCollection.pop('properties')
-    stacCollection['license'] = 'CC-BY-4.0'
-    stacCollection['providers'] = [{'name': 'Eurac EO ODC', 'url': 'http://www.eurac.edu/', 'roles': ['producer','host']}]
-    stacCollection['links'] = {}
-    stacCollection['links'] = [{'rel' : 'license', 'href' : 'https://creativecommons.org/licenses/by/4.0/', 'type' : 'text/html', 'title' : 'License link'}]
+    stacCollection['license'] = DEFAULT_DATA_LICENSE
+    stacCollection['providers'] = [DEFAULT_DATA_PROVIDER]
+    stacCollection['links'] = [DEFAULT_LINKS]
+    
     if "SAR2Cube" in collectionName:
         try:
             sar2cubeBbox = sar2cube_collection_extent(collectionName)
@@ -198,27 +191,27 @@ def construct_stac_collection(collectionName):
             if 'eo:cloud cover' in metadata['summaries']:
                 stacCollection['summaries']['eo:cloud cover'] = metadata['summaries']['eo:cloud cover']
         if 'cube:dimensions' in metadata.keys():
-            if 'bands' in metadata['cube:dimensions'].keys():
-                if 'values' in metadata['cube:dimensions']['bands'].keys():
-                    stacCollection['cube:dimensions']['bands'] = {}
-                    stacCollection['cube:dimensions']['bands']['type'] = 'bands'
-                    stacCollection['cube:dimensions']['bands']['values'] = metadata['cube:dimensions']['bands']['values']
+            if DEFAULT_BANDS_DIMENSION_NAME in metadata['cube:dimensions'].keys():
+                if 'values' in metadata['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME].keys():
+                    stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME] = {}
+                    stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME]['type'] = 'bands'
+                    stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME]['values'] = metadata['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME]['values']
 
     ### SPATIAL AND TEMPORAL EXTENT FROM DATACUBE-EXPLORER
     stacCollection['cube:dimensions'] = {}
-    stacCollection['cube:dimensions']['DATE'] = {}
-    stacCollection['cube:dimensions']['DATE']['type'] = 'temporal'
-    stacCollection['cube:dimensions']['DATE']['extent'] = stacCollection['extent']['temporal']['interval'][0]
+    stacCollection['cube:dimensions'][DEFAULT_TEMPORAL_DIMENSION_NAME] = {}
+    stacCollection['cube:dimensions'][DEFAULT_TEMPORAL_DIMENSION_NAME]['type'] = 'temporal'
+    stacCollection['cube:dimensions'][DEFAULT_TEMPORAL_DIMENSION_NAME]['extent'] = stacCollection['extent']['temporal']['interval'][0]
 
-    stacCollection['cube:dimensions']['X'] = {}
-    stacCollection['cube:dimensions']['X']['type'] = 'spatial'
-    stacCollection['cube:dimensions']['X']['axis'] = 'x'
-    stacCollection['cube:dimensions']['X']['extent'] = [stacCollection['extent']['spatial']['bbox'][0][0],stacCollection['extent']['spatial']['bbox'][0][2]]
+    stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME] = {}
+    stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['type'] = 'spatial'
+    stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['axis'] = 'x'
+    stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['extent'] = [stacCollection['extent']['spatial']['bbox'][0][0],stacCollection['extent']['spatial']['bbox'][0][2]]
 
-    stacCollection['cube:dimensions']['Y'] = {}
-    stacCollection['cube:dimensions']['Y']['type'] = 'spatial'
-    stacCollection['cube:dimensions']['Y']['axis'] = 'y'
-    stacCollection['cube:dimensions']['Y']['extent'] = [stacCollection['extent']['spatial']['bbox'][0][1],stacCollection['extent']['spatial']['bbox'][0][3]]
+    stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME] = {}
+    stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['type'] = 'spatial'
+    stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['axis'] = 'y'
+    stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['extent'] = [stacCollection['extent']['spatial']['bbox'][0][1],stacCollection['extent']['spatial']['bbox'][0][3]]
 
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName + "/items")
     items = res.json()
@@ -231,8 +224,8 @@ def construct_stac_collection(collectionName):
         with open(yamlFile, 'r') as stream:
             try:
                 yamlDATA = yaml.safe_load(stream)
-                stacCollection['cube:dimensions']['X']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
-                stacCollection['cube:dimensions']['Y']['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
+                stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
+                stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
             except Exception as e:
                 print(e)
     except:
@@ -240,10 +233,10 @@ def construct_stac_collection(collectionName):
 
     if metadata is not None:
         if 'crs' in metadata.keys():
-            stacCollection['cube:dimensions']['X']['reference_system'] = metadata['crs']
-            stacCollection['cube:dimensions']['Y']['reference_system'] = metadata['crs']
+            stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['reference_system'] = metadata['crs']
+            stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['reference_system'] = metadata['crs']
 
-    ### BANDS FROM DATACUBE-EXPLORER IF NOT ALREADY PROVIDED IN THE SUPP METADATA
+    ### BANDS FROM DATACUBE-EXPLORER IF NOT ALREADY PROVIDED IN THE SUPPLEMENTARY METADATA
     bands_list = []
     try:
         keys = items['features'][0]['assets'].keys()
@@ -258,14 +251,14 @@ def construct_stac_collection(collectionName):
                         assert "name" in b
                         name = b["name"]
                     bands_list.append(name)
-            stacCollection['cube:dimensions']['bands'] = {}
-            stacCollection['cube:dimensions']['bands']['type'] = 'bands'
-            stacCollection['cube:dimensions']['bands']['values'] = bands_list
+            stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME] = {}
+            stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME]['type'] = 'bands'
+            stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME]['values'] = bands_list
         except Exception as e:
             print(e)
     except Exception as e:
         print(e)
 
-    with open(METADATA_FOLDER + '/CACHE/' + collectionName + '.json', 'w') as outfile:
+    with open(METADATA_CACHE_FOLDER + '/' + collectionName + '.json', 'w') as outfile:
         json.dump(stacCollection, outfile)
     return stacCollection

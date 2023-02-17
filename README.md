@@ -2,8 +2,8 @@
 OpenEO processing engine written in Python based on OpenDataCube, Xarray and Dask.
 
 <p float="left">
-  <img src="/img/openeo_logo.png" width="200" />
-  <img src="/img/sar2cube.png" width="300" /> 
+  <img src="/docs/images/openeo_logo.png" width="200" />
+  <img src="/docs/images/sar2cube.png" width="300" /> 
 </p>
 
 # Installation
@@ -19,7 +19,7 @@ cd openeo_odc_driver
 New ad-hoc conda environment:
 ```sh
 conda env create -f environment.yml
-conda activate openeo_odc
+conda activate openeo_odc_driver
 ```
 
 ## Step 3:

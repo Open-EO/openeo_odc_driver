@@ -5,12 +5,16 @@ import pandas as pd
 import sys
 import xarray as xr
 from scipy import spatial
+import logging
+from openeo_odc_driver.config import LATITUDE_LAYER_NAME, LONGITUDE_LAYER_NAME
+
+_log = logging.getLogger(__name__)
 
 def check_S2grid(ulx, uly, lrx, lry,epsgout,spatialres):
     #Extract x,y reference coordinates for each zone
-    s2gridpath = './tabularize_s2_footprint.csv'
+    s2gridpath = './resources/tabularize_s2_footprint.csv'
     if not os.path.isfile(s2gridpath):
-        print('Sentinel grid file not found in /RES')
+        _log.error('Sentinel grid file tabularize_s2_footprint.csv not found in /resources')
         sys.exit()
         #load s2gridpath
     s2grid = pd.read_csv(s2gridpath, sep=',')
@@ -24,7 +28,7 @@ def check_S2grid(ulx, uly, lrx, lry,epsgout,spatialres):
         s2gridrefx = {ep:s2grid[s2grid['epsg']==ep].iloc[0]['ul_x'] for ep in epsglist}
         s2gridrefy = {ep:s2grid[s2grid['epsg']==ep].iloc[0]['ul_y'] for ep in epsglist}
     else:
-        print('Sentinel grid file provided not coherent with coordinates ')
+        _log.error('Sentinel grid file provided not coherent with coordinates ')
         sys.exit()
     if s2gridrefx[int(epsgout)] > ulx:
         ulxgrid = s2gridrefx[int(epsgout)] - (int((s2gridrefx[float(epsgout)] - ulx) / spatialres)*spatialres) + spatialres
@@ -54,11 +58,11 @@ def create_S2grid(grid_lon,grid_lat,output_crs,spatialres):
     grid_y_irregular[grid_y_irregular==np.inf] = 0
     max_x = np.nanmax(grid_x_irregular)
     max_y = np.nanmax(grid_y_irregular)
-    print('Irregular grid bounds: ',min_x, min_y, max_x, max_y)
+    _log.debug('Irregular grid bounds: ',min_x, min_y, max_x, max_y)
     output_crs_int = int(output_crs.split(':')[1])
-    print("OUTPUT CRS: ",output_crs_int)
+    _log.debug('Output CRS: ',output_crs_int)
     ulxgrid, ulygrid, lrxgrid, lrygrid = check_S2grid(min_x, max_y, max_x, min_y,output_crs_int,spatialres)
-    print('Aligned with S2 grid bounds: ',ulxgrid, lrygrid, lrxgrid, ulygrid)
+    _log.debug('Aligned with S2 grid bounds: ',ulxgrid, lrygrid, lrxgrid, ulygrid)
     wout = int((lrxgrid - ulxgrid) / spatialres)
     hout = int((ulygrid - lrygrid) / spatialres)
     if spatialres==10:
@@ -73,16 +77,13 @@ def create_S2grid(grid_lon,grid_lat,output_crs,spatialres):
     
     return x_regular.astype(np.float32), y_regular.astype(np.float32), grid_x_irregular.astype(np.float32), grid_y_irregular.astype(np.float32)
 
-def find_nearest(array, value):
-    array = np.asarray(array)
-    idx = (np.abs(array - value)).argmin()
-    return array[idx]
-
-def find_closest_2d(datacube,points):
-    lon_lat = np.asarray([datacube.grid_lon[0].fillna(0).values.flatten(), datacube.grid_lat[0].fillna(0).values.flatten()]).T
-    tree = spatial.KDTree(lon_lat)
-    res = tree.query(points)
-    found_point = lon_lat[res[1]]
-    x_ml = sent1_ML.grid_lat[0].where(sent1_ML.grid_lat[0]==found_point[1],drop=True).x.values
-    y_ml = sent1_ML.grid_lat[0].where(sent1_ML.grid_lat[0]==found_point[1],drop=True).y.values
-    return x_ml, y_ml
+def sar2cube_collection_extent(collectionName):
+    dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
+    sar2cubeData = dc.load(product = collectionName, dask_chunks={'time':1,'x':2000,'y':2000})
+    zero_lon_mask = sar2cubeData[LONGITUDE_LAYER_NAME][0]!=0
+    zero_lat_mask = sar2cubeData[LATITUDE_LAYER_NAME][0]!=0
+    min_lon = sar2cubeData[LONGITUDE_LAYER_NAME][0].where(zero_lon_mask).min().values.item(0)
+    min_lat = sar2cubeData[LATITUDE_LAYER_NAME][0].where(zero_lat_mask).min().values.item(0)
+    max_lon = sar2cubeData[LONGITUDE_LAYER_NAME][0].where(zero_lon_mask).max().values.item(0)
+    max_lat = sar2cubeData[LATITUDE_LAYER_NAME][0].where(zero_lat_mask).max().values.item(0)
+    return [min_lon,min_lat,max_lon,max_lat]

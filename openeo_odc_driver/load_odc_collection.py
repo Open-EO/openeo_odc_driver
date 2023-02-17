@@ -30,11 +30,25 @@ logging.basicConfig(
     ]
 )
 
-class Odc:
-    def __init__(self,collections=None,timeStart=None,timeEnd=None,south=None,north=None,west=None,east=None,bands=None,resolutions=None,outputCrs=None,polygon=None,resamplingMethod=None,crs=None):
+_log = logging.getLogger(__name__)
 
+class LoadOdcCollection:
+    def __init__(self,
+                 collection_id=None,
+                 timeStart=None,
+                 timeEnd=None,
+                 south=None,
+                 north=None,
+                 west=None,
+                 east=None,
+                 bands=None,
+                 resolutions=None,
+                 outputCrs=None,
+                 polygon=None,
+                 resamplingMethod=None,
+                 crs=None):
         self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
-        self.collections = collections
+        self.collection  = collection_id
         self.timeStart   = timeStart
         self.timeEnd     = self.exclusive_date(timeEnd)
         self.south       = south
@@ -56,14 +70,14 @@ class Odc:
             self.apply_mask()
     
     def sar2cube_collection(self):
-        return ('SAR2Cube' in self.collections) # Return True if it's a SAR2Cube collection, where spatial subsetting can't be performed in the usual way
+        return ('SAR2Cube' in self.collection) # Return True if it's a SAR2Cube collection, where spatial subsetting can't be performed in the usual way
     
     def exclusive_date(self,date):
-        return str(np.datetime64(date) - np.timedelta64(1, 'D')).split(' ')[0] # Substracts one day
+        return str(np.datetime64(date) - np.timedelta64(1, 'ms')).split(' ')[0] # Substracts one millisecond
         
     def build_query(self):
         query = {}
-        query['product'] = self.collections
+        query['product'] = self.collection
         if self.bands is not None:
             query['measurements'] = self.bands
         if self.polygon is not None:
@@ -98,7 +112,7 @@ class Odc:
                 self.query['resampling'] = self.resamplingMethod
         
         try:
-            self.data = self.dc.load(datasets=datasets,**self.query).astype(np.float32)
+            self.data = self.dc.load(datasets=datasets,**self.query)
             if self.data.equals(xr.Dataset()):
                 raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
         except Exception as e:
@@ -107,7 +121,7 @@ class Odc:
                 crs_query = copy.deepcopy(self.query)
                 crs_query.pop('product')
                 crs_query.pop('dask_chunks')
-                output_crs = dea_tools.datahandling.mostcommon_crs(dc=self.dc, product=self.collections, query=crs_query)
+                output_crs = dea_tools.datahandling.mostcommon_crs(dc=self.dc, product=self.collection, query=crs_query)
                 print(output_crs)
                 self.query['output_crs'] = output_crs
                 self.query['resolution'] = [10,10]
@@ -128,21 +142,11 @@ class Odc:
             bbox_mask = bbox_mask.where(bbox_mask,drop=True)
             self.data = self.data * bbox_mask
             self.data.attrs = attrs
-            logging.info("Elapsed time data masking: {}".format(time() - start_masking))
+            _log.debug("Elapsed time SAR2Cube data masking: {}".format(time() - start_masking))
         if self.sar2cube_collection():
             self.data['grid_lon'] = self.data.grid_lon.where(self.data.grid_lon!=0)
             self.data['grid_lat'] = self.data.grid_lat.where(self.data.grid_lat!=0)
             
-    def list_measurements(self):   # Get all the bands available in the loaded data as a list of strings
-        measurements = []
-        content = str(self.data)
-        meas = []
-        lines = content.split('Data variables:')[1].split('Attributes:')[0].splitlines()[1:]
-        for line in lines:
-            meas.append(line.split('  (time')[0].replace(" ", ""))
-        measurements.append(meas)
-        return measurements
-    
     def build_geometry_fromshapefile(self):
         shapes = fiona.open(self.polygon)
         print('Number of shapes in ',self.polygon,' :',len(shapes))
