@@ -8,7 +8,7 @@ OPENEO_PROCESSES       = "https://openeo.eurac.edu/processes"
 # Not necessary if the following environment variables are set:
 # DB_HOSTNAME ENV DB_USERNAME ENV DB_PASSWORD ENV DB_DATABASE
 
-OPENDATACUBE_CONFIG_FILE = ""
+OPENDATACUBE_CONFIG_FILE = None
 
 #Used in openeo_odc_driver/odc_backend.py:
 
