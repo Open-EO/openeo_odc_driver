@@ -47,7 +47,10 @@ class LoadOdcCollection:
                  polygon=None,
                  resamplingMethod=None,
                  crs=None):
-        self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
+        if OPENDATACUBE_CONFIG_FILE is not None:
+            self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
+        else: # Use ENV variables
+            self.dc = datacube.Datacube()
         self.collection  = collection_id
         self.timeStart   = timeStart
         self.timeEnd     = self.exclusive_date(timeEnd)
