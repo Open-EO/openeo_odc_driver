@@ -30,7 +30,6 @@ services:
       - 9001:9000
     volumes:
       - ./tests:/tests
-      - ./products.csv:/products.csv
     restart: always
     
   openeo_odc_driver:
@@ -50,9 +49,7 @@ services:
     ports:
       - 5001:5000
     volumes:
-      - ./products.csv:/products.csv
       - ~/tmp/:/tmp/
-    restart: always
     
   checkdb:
     image: schaffdev/port_check:latest

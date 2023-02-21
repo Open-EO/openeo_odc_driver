@@ -10,8 +10,8 @@ help: ## Print this help
 	@echo
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-10s\033[0m %s\n", $$1, $$2}'
 
-setup: build up init product index ## Run a full local/development setup
-update: build up init ## Run a full local/development setup
+setup: build up init product index explorer ## Run a full local/development setup
+update: build up ## Run a full local/development setup
 
 up: ## 1. Bring up your Docker environment
 	docker-compose up -d postgres
@@ -23,7 +23,8 @@ init: ## 2. Prepare the database
 	docker-compose exec -T openeo_odc_driver datacube -v system init
 
 product: ## 3. Add a product definition for Sentinel-2
-	docker-compose exec -T openeo_odc_driver dc-sync-products /conf/products.csv
+	docker-compose exec -T openeo_odc_driver wget https://raw.githubusercontent.com/digitalearthafrica/config/master/products/esa_s2_l2a.odc-product.yaml
+	docker-compose exec -T openeo_odc_driver datacube product add esa_s2_l2a.odc-product.yaml
 
 index: ## 4. Index some data (Change extents with BBOX='<left>,<bottom>,<right>,<top>')
 	docker-compose exec -T openeo_odc_driver bash -c \
@@ -32,16 +33,9 @@ index: ## 4. Index some data (Change extents with BBOX='<left>,<bottom>,<right>,
 			--catalog-href='https://earth-search.aws.element84.com/v0/' \
 			--collections='sentinel-s2-l2a-cogs' \
 			--datetime='2015-06-01/2023-07-01'"
-	docker-compose exec -T openeo_odc_driver bash -c \
-		"stac-to-dc \
-			--catalog-href=https://planetarycomputer.microsoft.com/api/stac/v1/ \
-			--collections='io-lulc'" || true
-	# doesnt support multipoligon https://github.com/opendatacube/odc-tools/issues/538
-	docker-compose exec -T openeo_odc_driver bash -c \
-		"stac-to-dc \
-			--catalog-href='https://planetarycomputer.microsoft.com/api/stac/v1/' \
-			--collections='nasadem' \
-			--bbox='$(BBOX)'"
+
+explorer: ## 5. Prepare the explorer
+	docker-compose exec -T explorer cubedash-gen --init --all
 
 down: ## Bring down the system
 	docker-compose down

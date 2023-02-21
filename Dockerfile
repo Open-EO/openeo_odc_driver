@@ -19,7 +19,7 @@ RUN apt-get update && \
 
 COPY requirements.txt /conf/
 
-RUN pip install --requirement /conf/requirements.txt
+RUN pip install --no-cache-dir --requirement /conf/requirements.txt
 RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
   odc-ui \
   odc-stac \
@@ -34,7 +34,6 @@ RUN git clone https://github.com/Open-EO/openeo-pg-parser-python.git
 RUN cd openeo-pg-parser-python && pip install .
 
 RUN git clone https://github.com/SARScripts/openeo_odc_driver.git -b dev
-RUN cd openeo_odc_driver && pip install .
 
 WORKDIR /
 

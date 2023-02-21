@@ -1,3 +1,6 @@
+aiohttp
+aiobotocore[boto3,awscli]==1.0.7
+odc-apps-dc-tools==0.2.1
 pyyaml
 wget
 requests
@@ -13,11 +16,9 @@ geopandas
 geocube
 distributed
 dask
-libnetcdf
 netCDF4
 h5netcdf
 flask
 dea-tools
 gunicorn
 opencv-python
-odc-apps-dc-tools==0.2.1
