@@ -102,7 +102,7 @@ class ProcessOpeneoGraph():
         self.sar2cubeCollection = False
         self.fitCurveFunctionString = ""
         try:
-            os.mkdir(self.tmp_folder_path)
+            os.mkdir(self.result_folder_path)
         except:
             pass
         self.start = time()
