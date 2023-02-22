@@ -1,7 +1,7 @@
 # Used in openeo_odc_driver/openeo_odc_driver.py:
 
 DASK_SCHEDULER_ADDRESS = "" # Not used currently (local cluster)
-TMP_FOLDER_PATH        = "/tmp/" # Remember a slash at the end of this path. Has to be accessible from all the Dask workers, not used currently (local cluster)
+RESULT_FOLDER_PATH        = "/tmp/" # Remember a slash at the end of this path. Has to be accessible from all the Dask workers
 OPENEO_PROCESSES       = "https://openeo.eurac.edu/processes"
 
 # Used in openeo_odc_driver/odc_backend.py and openeo_odc_driver/load_odc_collection.py
@@ -25,7 +25,7 @@ METADATA_CACHE_FOLDER = METADATA_FOLDER + "cache"
 METADATA_COLLECTIONS_FILE = METADATA_CACHE_FOLDER + "/" + "ODC_collections.json"
 METADATA_SUPPLEMENTARY_FOLDER = METADATA_FOLDER + "supplementary"
 
-DEFAULT_DATA_PROVIDER = {'name': 'Eurac EO ODC', 'url': 'http://www.eurac.edu/', 'roles': ['producer','host']}
+DEFAULT_DATA_PROVIDER = {'name': 'Eurac EO ODC', 'url': 'http://www.eurac.edu/', 'roles': ['host']}
 DEFAULT_DATA_LICENSE = 'CC-BY-4.0'
 DEFAULT_LINKS = {'rel' : 'license', 'href' : 'https://creativecommons.org/licenses/by/4.0/', 'type' : 'text/html', 'title' : 'License link'}
 DEFAULT_TEMPORAL_DIMENSION_NAME = 'DATE'

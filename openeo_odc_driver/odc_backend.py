@@ -61,7 +61,7 @@ def process_graph():
         df = df.append({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
         df.to_csv(JOB_LOG_FILE)
         eo = ProcessOpeneoGraph(jsonGraph)
-        return jsonify({'output':eo.tmp_folder_path.split('/')[-1] + '/result'+eo.out_format})
+        return jsonify({'output':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format})
     except Exception as e:
         _log.error(e)
         return error400('ODC engine error in process: ' + str(e))
@@ -216,18 +216,23 @@ def construct_stac_collection(collectionName):
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/collections/" + collectionName + "/items")
     items = res.json()
 
+
     ## TODO: remove this part when all the datacubes have a metadata file, crs comes from there
     try:
-        yamlFile = items['features'][0]['assets']['location']['href']
-        yamlFile = yamlFile.split('file://')[1].replace('%40','@').replace('%3A',':')
+        if 'location' in items['features'][0]['assets']:
+            yamlFile = items['features'][0]['assets']['location']['href']
+            yamlFile = yamlFile.split('file://')[1].replace('%40','@').replace('%3A',':')
 
-        with open(yamlFile, 'r') as stream:
-            try:
-                yamlDATA = yaml.safe_load(stream)
-                stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
-                stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
-            except Exception as e:
-                print(e)
+            with open(yamlFile, 'r') as stream:
+                try:
+                    yamlDATA = yaml.safe_load(stream)
+                    stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
+                    stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['reference_system'] = int(yamlDATA['grid_spatial']['projection']['spatial_reference'].split('EPSG')[-1].split('\"')[-2])
+                except Exception as e:
+                    print(e)
+        else:
+            stacCollection['cube:dimensions'][DEFAULT_X_DIMENSION_NAME]['reference_system'] = 4326
+            stacCollection['cube:dimensions'][DEFAULT_Y_DIMENSION_NAME]['reference_system'] = 4326
     except:
         pass
 
@@ -244,13 +249,14 @@ def construct_stac_collection(collectionName):
         if 'location' in list_keys: list_keys.remove('location')
         try:
             for key in list_keys:
-                for b in items['features'][0]['assets'][key]['eo:bands']:
-                    name = b
-                    # odc explorer different outputs on different versions:
-                    if type(b) is dict:
-                        assert "name" in b
-                        name = b["name"]
-                    bands_list.append(name)
+                if 'eo:bands' in items['features'][0]['assets'][key]:
+                    for b in items['features'][0]['assets'][key]['eo:bands']:
+                        name = b
+                        # odc explorer different outputs on different versions:
+                        if type(b) is dict:
+                            assert "name" in b
+                            name = b["name"]
+                        bands_list.append(name)
             stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME] = {}
             stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME]['type'] = 'bands'
             stacCollection['cube:dimensions'][DEFAULT_BANDS_DIMENSION_NAME]['values'] = bands_list

@@ -96,9 +96,9 @@ class ProcessOpeneoGraph():
         self.run_udf_number = 0
         self.i = 0
         if self.job_id == "None":
-            self.tmp_folder_path = TMP_FOLDER_PATH + str(uuid.uuid4())
+            self.result_folder_path = RESULT_FOLDER_PATH + str(uuid.uuid4())
         else:
-            self.tmp_folder_path = TMP_FOLDER_PATH + self.job_id # If it is a batch job, there will be a field with it's id
+            self.result_folder_path = RESULT_FOLDER_PATH + self.job_id # If it is a batch job, there will be a field with it's id
         self.sar2cubeCollection = False
         self.fitCurveFunctionString = ""
         try:
@@ -330,13 +330,13 @@ class ProcessOpeneoGraph():
                     def compute_udf(i,data,run_udf_number):
                         # _log.getLogger('rpy2').setLevel(logging.ERROR)
                         result = udf_lib.execute_udf(parent.process_id, node.arguments['udf'], data, dimension = udf_dim, context = node.arguments['context'])
-                        result.to_netcdf(self.tmp_folder_path + '/udf_' + str(run_udf_number) + '_' + str(i) + '.nc')
+                        result.to_netcdf(self.result_folder_path + '/udf_' + str(run_udf_number) + '_' + str(i) + '.nc')
                         result = None
                         return 
                     # # Run UDF executor in parallel
                     input_data_chunked = udf_lib.chunk_cube(input_data, size=chunk_size)
                     results = Parallel(n_jobs=num_jobs)(joblibDelayed(compute_udf)(i,data,self.run_udf_number) for i,data in enumerate(input_data_chunked))
-                    self.partialResults[node.id] = xr.open_mfdataset(self.tmp_folder_path + '/udf_' + str(self.run_udf_number) + '_*.nc', combine="nested").to_array()
+                    self.partialResults[node.id] = xr.open_mfdataset(self.result_folder_path + '/udf_' + str(self.run_udf_number) + '_*.nc', combine="nested").to_array()
                     self.run_udf_number = self.run_udf_number + 1
                                 
                 
@@ -1416,7 +1416,7 @@ class ProcessOpeneoGraph():
             if processName == 'geocode':
                 from sar2cube.geocode import geocode
                 source = node.arguments['data']['from_node']
-                self.partialResults[node.id] = (self.partialResults[source],node.arguments,self.tmp_folder_path)
+                self.partialResults[node.id] = (self.partialResults[source],node.arguments,self.result_folder_path)
             
             if processName == 'radar_mask':
                 parent = node.parent_process
@@ -1591,14 +1591,14 @@ class ProcessOpeneoGraph():
                 self.partialResults[node.id] = predictedData.to_array().transpose('variable','time','y','x')
                 
             if processName == 'load_result':
-                _log.info(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc')
-                if exists(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc'):
+                _log.info(RESULT_FOLDER_PATH + node.arguments['id'] + '/output.nc')
+                if exists(RESULT_FOLDER_PATH + node.arguments['id'] + '/output.nc'):
                     try:
                         # If the data is has a single band we load it directly as xarray.DataArray, otherwise as Dataset and convert to DataArray
-                        self.partialResults[node.id] = xr.open_dataarray(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={})
+                        self.partialResults[node.id] = xr.open_dataarray(RESULT_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={})
                     except:
                         _log.info("Except")
-                        self.partialResults[node.id] = xr.open_dataset(TMP_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={}).to_array()
+                        self.partialResults[node.id] = xr.open_dataset(RESULT_FOLDER_PATH + node.arguments['id'] + '/output.nc',chunks={}).to_array()
                 else:
                     raise Exception("[!] Result of job " + node.arguments['id'] + " not found! It must be a netCDF file.")
                 _log.info(self.partialResults[node.id])
@@ -1668,7 +1668,7 @@ class ProcessOpeneoGraph():
                             bgr = cv2.resize(bgr, dsize)
                     bgr = bgr.astype(np.uint8)
                     if(self.sar2cubeCollection): bgr=np.flipud(bgr)
-                    cv2.imwrite(str(self.tmp_folder_path) + '/result.png',bgr)
+                    cv2.imwrite(str(self.result_folder_path) + '/result.png',bgr)
                     return 0
 
                 if out_format.lower() in ['gtiff','geotiff','tif','tiff']:
@@ -1709,8 +1709,8 @@ class ProcessOpeneoGraph():
                     self.partialResults[node.id].attrs['crs'] = self.crs
                     if 'variable' in self.partialResults[node.id].dims:
                         self.partialResults[node.id] = self.partialResults[node.id].to_dataset(dim='variable')
-                    self.partialResults[node.id].rio.to_raster(self.tmp_folder_path + "/result.tiff")
-                    ds = gdal.Open(self.tmp_folder_path + "/result.tiff", gdal.GA_Update)
+                    self.partialResults[node.id].rio.to_raster(self.result_folder_path + "/result.tiff")
+                    ds = gdal.Open(self.result_folder_path + "/result.tiff", gdal.GA_Update)
                     n_of_bands = ds.RasterCount
                     for band in range(n_of_bands):
                         ds.GetRasterBand(band+1).ComputeStatistics(0)
@@ -1733,16 +1733,16 @@ class ProcessOpeneoGraph():
                             if 'mnt' not in outputFolder:
                                 raise Exception("[!] Provided output path is not valid!")
                             if os.path.exists(outputFolder):
-                                self.tmp_folder_path = outputFile
-                                _log.info("New folder " + str(self.tmp_folder_path))
+                                self.result_folder_path = outputFile
+                                _log.info("New folder " + str(self.result_folder_path))
                                 self.returnFile = False
                             else:
                                 raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
                     if 'params' in self.partialResults[source].dims:
                         if self.returnFile:
-                            self.partialResults[source].to_netcdf(self.tmp_folder_path + "/result.nc")
+                            self.partialResults[source].to_netcdf(self.result_folder_path + "/result.nc")
                         else:
-                            self.partialResults[source].to_netcdf(self.tmp_folder_path)
+                            self.partialResults[source].to_netcdf(self.result_folder_path)
                         return 0
                     tmp = self.partialResults[source]
                     try:
@@ -1753,9 +1753,9 @@ class ProcessOpeneoGraph():
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
                         if self.returnFile:
-                            tmp.to_netcdf(self.tmp_folder_path + "/result.nc")
+                            tmp.to_netcdf(self.result_folder_path + "/result.nc")
                         else:
-                            tmp.to_netcdf(self.tmp_folder_path)
+                            tmp.to_netcdf(self.result_folder_path)
                         return 0
                     except Exception as e:
                         _log.info(e)
@@ -1766,9 +1766,9 @@ class ProcessOpeneoGraph():
                             tmp.time.attrs.pop('units', None)
                         
                         if self.returnFile:
-                            tmp.to_netcdf(self.tmp_folder_path + "/result.nc")
+                            tmp.to_netcdf(self.result_folder_path + "/result.nc")
                         else:
-                            tmp.to_netcdf(self.tmp_folder_path)
+                            tmp.to_netcdf(self.result_folder_path)
                     except Exception as e:
                         _log.info(e)
                         _log.info("Wrtiting netcdf failed!")
@@ -1779,7 +1779,7 @@ class ProcessOpeneoGraph():
                     self.out_format = '.json'
                     self.mimeType = 'application/json'
                     if isinstance(self.partialResults[source],gpd.geodataframe.GeoDataFrame):
-                        self.partialResults[source].to_file(self.tmp_folder_path + "/result.json", driver="GeoJSON")
+                        self.partialResults[source].to_file(self.result_folder_path + "/result.json", driver="GeoJSON")
                         return
                     else:
                         data = self.partialResults[source].compute()
@@ -1817,7 +1817,7 @@ class ProcessOpeneoGraph():
                                     data_dict[index] = [[data.loc[{dims_no_bands[0]:index}].values]]
                         else:
                             data_dict = data.to_dict()
-                        with open(self.tmp_folder_path + "/result.json", 'w') as outfile:
+                        with open(self.result_folder_path + "/result.json", 'w') as outfile:
                             json.dump(data_dict,outfile,default=str)
                         return 
 
