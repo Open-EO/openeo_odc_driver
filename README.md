@@ -67,9 +67,9 @@ You can verify that the deployment was successfull visiting:
 python tests/test_process_graph.py ./tests/process_graphs/NDVI_Bolzano_median.json
 ```
 
-![image.png](attachment:9f755b3f-8733-428b-b45a-62fe5ed7e40e.png)
+![image](https://user-images.githubusercontent.com/31700619/220927309-cd4be598-4f93-43cf-ac17-d6dbaa1a2bc3.png)
 
-![image.png](attachment:517e5f33-5ab9-4381-957e-6d949a01fe68.png)
+![image](https://user-images.githubusercontent.com/31700619/220927197-5fccca3a-fff4-4311-9c99-af7c6c4d08f4.png)
 
 # Local installation instructions:
 
