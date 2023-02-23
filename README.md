@@ -32,7 +32,7 @@ cd openeo_odc_driver
 To create and run the docker containers, run:
 
 ```sh
-sudo make setup
+make setup
 ```
 
 This step will run in a sequence the Makefile steps `build up init product index explorer`. The result will be 3 dockers running.
@@ -57,9 +57,9 @@ fa1b162c8d44        postgis/postgis:12-2.5              "docker-entrypoint.s…"
 
 You can verify that the deployment was successfull visiting:
 
-`https://localhost:9001` for the datacube explorer web app
+`http://localhost:9001` for the datacube explorer web app
 
-`https://localhost:5001/collections/` for the openEO collections exposed via the openeo_odc_driver.
+`http://localhost:5001/collections/` for the openEO collections exposed via the openeo_odc_driver.
 
 ## Step 3: Test your environment with an openEO process graph:
 
