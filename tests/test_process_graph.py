@@ -6,7 +6,6 @@ import requests
 import json
 import sys
 from time import time
-from openeo_odc_driver.config import *
 
 start = time()
 if len(sys.argv) != 2:
@@ -18,5 +17,5 @@ with open(process_graph) as f:
 res = requests.post('http://0.0.0.0:5001/graph', json=d)
 print(res)
 print(res.headers['content-type'])
-print('Result stored in the Docker folder ',RESULT_FOLDER_PATH + res.json()['output'])
+print('Result stored in the Docker folder set by RESULT_FOLDER_PATH in config.py (default: ~/tmp/ ): ',res.json()['output'])
 print('Elapsed time: ',time() - start)

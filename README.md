@@ -61,11 +61,21 @@ You can verify that the deployment was successfull visiting:
 
 `https://localhost:5001/collections/` for the openEO collections exposed via the openeo_odc_driver.
 
+## Step 3: Test your environment with an openEO process graph:
+
+```sh
+python tests/test_process_graph.py ./tests/process_graphs/NDVI_Bolzano_median.json
+```
+
+![image.png](attachment:9f755b3f-8733-428b-b45a-62fe5ed7e40e.png)
+
+![image.png](attachment:517e5f33-5ab9-4381-957e-6d949a01fe68.png)
+
 # Local installation instructions:
 
 ## Step 1: Clone the repository
 ```sh
-git clone https://github.com/SARScripts/openeo_odc_driver.git
+git clone https://github.com/SARScripts/openeo_odc_driver.git -b dev
 cd openeo_odc_driver
 ```
 
