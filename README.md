@@ -1,6 +1,12 @@
 # OpenEO ODC Driver
 OpenEO processing engine written in Python based on OpenDataCube, Xarray and Dask.
 
+**Please note: this project is still under development and many changes will occur in the next months.**
+
+Currently it is based on openEO processes implemented in this repository together with the openEO process graph parser from https://github.com/Open-EO/openeo-pg-parser-python
+
+The next phase of the project will use the process implementations available at [openeo-processes-dask](https://github.com/Open-EO/openeo-processes-dask/) and the parser [openeo-pg-parser-networkx](https://github.com/Open-EO/openeo-pg-parser-networkx).
+
 <p float="center">
   <img src="https://avatars.githubusercontent.com/u/23743223?s=200&v=4" width="200" hspace="20"/>
   <img src="https://avatars.githubusercontent.com/u/26125288?s=200&v=4" width="200" hspace="20"/>
@@ -52,6 +58,7 @@ fa1b162c8d44        postgis/postgis:12-2.5              "docker-entrypoint.s…"
 You can verify that the deployment was successfull visiting:
 
 `https://localhost:9001` for the datacube explorer web app
+
 `https://localhost:5001/collections/` for the openEO collections exposed via the openeo_odc_driver.
 
 # Local installation instructions:
