@@ -1,3 +1,7 @@
+# coding=utf-8
+# Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
+# Date:   23/02/2023
+
 #merge_cubes
 OverlapResolverMissing = "Overlapping data cubes, but no overlap resolver has been specified."
 #resample_cube_temporal

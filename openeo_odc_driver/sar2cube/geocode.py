@@ -1,3 +1,7 @@
+# coding=utf-8
+# Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
+# Date:   23/02/2023
+
 import numpy as np
 import xarray as xr
 import scipy

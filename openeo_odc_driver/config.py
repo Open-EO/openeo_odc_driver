@@ -1,7 +1,14 @@
+# coding=utf-8
+# Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
+# Date:   23/02/2023
+
 # Used in openeo_odc_driver/openeo_odc_driver.py:
 
-DASK_SCHEDULER_ADDRESS = "" # Not used currently (local cluster)
-RESULT_FOLDER_PATH        = "/tmp/" # Remember a slash at the end of this path. Has to be accessible from all the Dask workers
+# Not used currently (local cluster)
+DASK_SCHEDULER_ADDRESS = ""
+# Remember a slash at the end of this path. Same as the org.openeo.tmp.dir set in openeo-spring-driver if used together.
+RESULT_FOLDER_PATH        = "~/tmp/"
+# list of available openEO processes. # TODO: this should be internally generated so that we don't rely on external sources.
 OPENEO_PROCESSES       = "https://openeo.eurac.edu/processes"
 
 # Used in openeo_odc_driver/odc_backend.py and openeo_odc_driver/load_odc_collection.py
@@ -12,8 +19,10 @@ OPENDATACUBE_CONFIG_FILE = None
 
 #Used in openeo_odc_driver/odc_backend.py:
 
+# Application name from the Flask web server
 FLASK_APP_NAME = 'openeo_odc_driver'
 
+# datacube-explorer endpoint. For local deployment it should be `http://0.0.0.0:9000` and for the Docker deployment `http://explorer:9000`
 DATACUBE_EXPLORER_ENDPOINT = "http://explorer:9000"
 
 USE_CACHED_COLLECTIONS = False
