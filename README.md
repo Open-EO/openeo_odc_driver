@@ -17,7 +17,7 @@ It also requires `make` to use the Makefile. If you don't have it and/or you can
 
 ## Step 1: Clone the repository
 ```sh
-git clone https://github.com/SARScripts/openeo_odc_driver.git
+git clone https://github.com/SARScripts/openeo_odc_driver.git -b dev
 cd openeo_odc_driver
 ```
 
