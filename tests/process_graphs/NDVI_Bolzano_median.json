@@ -1,0 +1,123 @@
+{
+  "parameters": [],
+  "process_graph": {
+    "loadcollection1": {
+      "process_id": "load_collection",
+      "arguments": {
+        "temporal_extent": [
+          "2022-06-01T00:00:00Z",
+          "2022-06-30T23:59:59Z"
+        ],
+        "spatial_extent": {
+          "west": 11.283402372420943,
+          "east": 11.40672146557741,
+          "south": 46.45584062149402,
+          "north": 46.52154308303503
+        },
+        "id": "s2_l2a",
+        "bands": [
+          "B04",
+          "B08"
+        ],
+        "properties": {}
+      }
+    },
+    "reduce1": {
+      "process_id": "reduce_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "reducer": {
+          "process_graph": {
+            "ntm7yhbad": {
+              "process_id": "array_element",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                },
+                "label": "B08"
+              }
+            },
+            "p9kfzq7mz": {
+              "process_id": "array_element",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                },
+                "label": "B04"
+              }
+            },
+            "bl5qf936u": {
+              "process_id": "subtract",
+              "arguments": {
+                "x": {
+                  "from_node": "ntm7yhbad"
+                },
+                "y": {
+                  "from_node": "p9kfzq7mz"
+                }
+              }
+            },
+            "w7a87itdv": {
+              "process_id": "add",
+              "arguments": {
+                "x": {
+                  "from_node": "ntm7yhbad"
+                },
+                "y": {
+                  "from_node": "p9kfzq7mz"
+                }
+              }
+            },
+            "bg4fhctkg": {
+              "process_id": "divide",
+              "arguments": {
+                "x": {
+                  "from_node": "bl5qf936u"
+                },
+                "y": {
+                  "from_node": "w7a87itdv"
+                }
+              },
+              "result": true
+            }
+          }
+        },
+        "dimension": "bands"
+      }
+    },
+    "reducedimension2": {
+      "process_id": "reduce_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "reduce1"
+        },
+        "reducer": {
+          "process_graph": {
+            "median1": {
+              "process_id": "median",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                }
+              },
+              "result": true
+            }
+          }
+        },
+        "dimension": "t"
+      }
+    },
+    "saveresult1": {
+      "process_id": "save_result",
+      "arguments": {
+        "data": {
+          "from_node": "reducedimension2"
+        },
+        "format": "GTIFF"
+      },
+      "result": true
+    }
+  }
+}
