@@ -10,18 +10,17 @@ import sys
 import xarray as xr
 from scipy import spatial
 import logging
-from openeo_odc_driver.config import LATITUDE_LAYER_NAME, LONGITUDE_LAYER_NAME
+from config import LATITUDE_LAYER_NAME, LONGITUDE_LAYER_NAME, S2_FOOTPRINT_FILE
 
 _log = logging.getLogger(__name__)
 
 def check_S2grid(ulx, uly, lrx, lry,epsgout,spatialres):
     #Extract x,y reference coordinates for each zone
-    s2gridpath = './resources/tabularize_s2_footprint.csv'
-    if not os.path.isfile(s2gridpath):
+    if not os.path.isfile(S2_FOOTPRINT_FILE):
         _log.error('Sentinel grid file tabularize_s2_footprint.csv not found in /resources')
         sys.exit()
-        #load s2gridpath
-    s2grid = pd.read_csv(s2gridpath, sep=',')
+    #load S2_FOOTPRINT_FILE
+    s2grid = pd.read_csv(S2_FOOTPRINT_FILE, sep=',')
     s2grid = s2grid.drop(np.where(s2grid.epsg != epsgout)[0])
     s2grid = s2grid.reset_index()
     epsglist = set(s2grid['epsg'])

@@ -2,13 +2,19 @@
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
 # Date:   23/02/2023
 
+import os
+import sys
+from glob import glob
+import pickle
 import numpy as np
 import xarray as xr
 import scipy
 from scipy.interpolate import griddata
 from scipy.spatial import Delaunay
 from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
-from utils import create_S2grid
+from joblib import Parallel
+from joblib import delayed as joblibDelayed
+from sar2cube.utils import create_S2grid
 import logging
 
 _log = logging.getLogger(__name__)
@@ -108,8 +114,6 @@ def geocode(data,parameters,tmp_folder):
         raise Exception("[!] The geocode process supports only 10m,20m,60m for resolution to align with the Sentinel-2 grid.")
 
     if 'crs' in parameters and parameters['crs'] is not None:
-        # TODO : move out of here
-        self.crs = parameters['crs']
         output_crs = "epsg:" + str(parameters['crs'])
     else:
         raise Exception("[!] The geocode process is missing the required crs field.")
@@ -185,7 +189,7 @@ def geocode(data,parameters,tmp_folder):
                                                                   spatialres)for index in range(len(chunks_x_regular)))
     output = xr.open_mfdataset(tmp_folder + '/*.nc', combine="by_coords").to_array()
     output = output.sortby(output.y)
-
+    output.rio.write_crs(output_crs, inplace=True)
 
     tmp_files_to_remove = glob(tmp_folder + '/*.pc')
     Parallel(n_jobs=8)(joblibDelayed(os.remove)(file_to_remove) for file_to_remove in tmp_files_to_remove)

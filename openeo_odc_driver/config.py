@@ -5,11 +5,11 @@
 # Used in openeo_odc_driver/openeo_odc_driver.py:
 
 # Not used currently (local cluster)
-DASK_SCHEDULER_ADDRESS = ""
+DASK_SCHEDULER_ADDRESS = ''
 # Remember a slash at the end of this path. Same as the org.openeo.tmp.dir set in openeo-spring-driver if used together.
-RESULT_FOLDER_PATH        = "~/tmp/"
+RESULT_FOLDER_PATH        = '~/tmp/'
 # list of available openEO processes. # TODO: this should be internally generated so that we don't rely on external sources.
-OPENEO_PROCESSES       = "https://openeo.eurac.edu/processes"
+OPENEO_PROCESSES       = 'https://openeo.eurac.edu/processes'
 
 # Used in openeo_odc_driver/odc_backend.py and openeo_odc_driver/load_odc_collection.py
 # Not necessary if the following environment variables are set:
@@ -23,16 +23,16 @@ OPENDATACUBE_CONFIG_FILE = None
 FLASK_APP_NAME = 'openeo_odc_driver'
 
 # datacube-explorer endpoint. For local deployment it should be `http://0.0.0.0:9000` and for the Docker deployment `http://explorer:9000`
-DATACUBE_EXPLORER_ENDPOINT = "http://explorer:9000"
+DATACUBE_EXPLORER_ENDPOINT = 'http://explorer:9000'
 
 USE_CACHED_COLLECTIONS = False
 
 JOB_LOG_FILE = 'jobs_log.csv'
 
-METADATA_FOLDER = "./"
-METADATA_CACHE_FOLDER = METADATA_FOLDER + "cache"
-METADATA_COLLECTIONS_FILE = METADATA_CACHE_FOLDER + "/" + "ODC_collections.json"
-METADATA_SUPPLEMENTARY_FOLDER = METADATA_FOLDER + "supplementary"
+METADATA_FOLDER = './'
+METADATA_CACHE_FOLDER = METADATA_FOLDER + 'cache'
+METADATA_COLLECTIONS_FILE = METADATA_CACHE_FOLDER + '/' + 'ODC_collections.json'
+METADATA_SUPPLEMENTARY_FOLDER = METADATA_FOLDER + 'supplementary'
 
 DEFAULT_DATA_PROVIDER = {'name': 'Eurac EO ODC', 'url': 'http://www.eurac.edu/', 'roles': ['host']}
 DEFAULT_DATA_LICENSE = 'CC-BY-4.0'
@@ -47,3 +47,4 @@ DEFAULT_BANDS_DIMENSION_NAME = 'bands'
 
 LONGITUDE_LAYER_NAME = 'grid_lon'
 LATITUDE_LAYER_NAME = 'grid_lat'
+S2_FOOTPRINT_FILE = './sar2cube/resources/tabularize_s2_footprint.csv'

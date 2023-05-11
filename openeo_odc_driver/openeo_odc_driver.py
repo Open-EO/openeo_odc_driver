@@ -16,7 +16,6 @@ from time import time
 from datetime import datetime
 import json
 import uuid
-import pickle
 import logging
 import traceback
 from glob import glob
@@ -102,7 +101,8 @@ class ProcessOpeneoGraph():
         self.fitCurveFunctionString = ""
         try:
             os.mkdir(self.result_folder_path)
-        except:
+        except Exception as e:
+            _log.error(e)
             pass
         self.start = time()
         _log.info("[*] Init of dask cluster")
@@ -692,12 +692,17 @@ class ProcessOpeneoGraph():
                 except:
                     try:
                         coords = node.arguments['geometries']['coordinates']
-                        print(coords)
                         polygon = Polygon([tuple(c) for c in coords[0]])
                         gdf = gpd.GeoDataFrame(index=[0], crs='epsg:4326', geometry=[polygon])
                     except Exception as e:
                         raise(e) 
-                gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))
+                try:
+                    gdf_utm = gdf.to_crs(int(self.partialResults[source].spatial_ref))
+                except:
+                    try:
+                        gdf_utm = gdf.to_crs(self.partialResults[source].spatial_ref.attrs['spatial_ref'])
+                    except Exception as e:
+                        raise e
                 ## Clip the data and keep only the data within the polygons
                 self.partialResults[node.id] = self.partialResults[source].rio.clip(gdf_utm.geometry, drop=True)
 
@@ -1415,7 +1420,8 @@ class ProcessOpeneoGraph():
             if processName == 'geocode':
                 from sar2cube.geocode import geocode
                 source = node.arguments['data']['from_node']
-                self.partialResults[node.id] = (self.partialResults[source],node.arguments,self.result_folder_path)
+                self.partialResults[node.id] = geocode(self.partialResults[source],node.arguments,self.result_folder_path)
+                self.crs = node.arguments['crs']
             
             if processName == 'radar_mask':
                 parent = node.parent_process

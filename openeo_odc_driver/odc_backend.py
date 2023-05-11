@@ -155,10 +155,13 @@ def construct_stac_collection(collectionName):
 
     ### SUPPLEMENTARY METADATA FROM FILE
     if metadata is not None:
+        if 'extent' in metadata.keys():
+            if 'temporal' in metadata['extent']:
+                stacCollection['extent']['temporal'] = metadata['extent']['temporal']
         if 'title' in metadata.keys():
-            stacCollection['title']       = metadata['title']
+            stacCollection['title']        = metadata['title']
         if 'description' in metadata.keys():
-            stacCollection['description'] = metadata['description']
+            stacCollection['description']  = metadata['description']
         if 'keywords' in metadata.keys():
             stacCollection['keywords']     = metadata['keywords']
         if 'providers' in metadata.keys():
