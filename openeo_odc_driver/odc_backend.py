@@ -46,6 +46,8 @@ def process_graph():
         _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
         try:
             job_id = jsonGraph['id']
+            _log.set_job_id(job_id)
+            _log.info(f"Obtaining job id from graph: {job_id}")
         except Exception as e:
             _log.error(e)
             job_id = 'None'
@@ -65,6 +67,7 @@ def process_graph():
 def stop_job():
     try:
         job_id = request.args['id']
+        _log.job_id(job_id)
         _log.debug('Job id to cancel: {}'.format(job_id))
         if os.path.exists(JOB_LOG_FILE):
             df = pd.read_csv(JOB_LOG_FILE,index_col=0)

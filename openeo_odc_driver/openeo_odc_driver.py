@@ -66,7 +66,6 @@ logging.getLogger('datacube').setLevel(logging.INFO)
 logging.getLogger('dask.distributed').setLevel(logging.INFO)
 
 
-
 _log = log_jobid.LogJobID() 
 
 class ProcessOpeneoGraph():
@@ -74,6 +73,7 @@ class ProcessOpeneoGraph():
         self.jsonProcessGraph = jsonProcessGraph
         try:
             self.job_id = jsonProcessGraph['id']
+            _log.set_job_id(self.job_id)
         except:
             self.job_id = "None"
         self.data = None
@@ -100,9 +100,10 @@ class ProcessOpeneoGraph():
         self.start = time()
         _log.info("[*] Init of dask cluster")
         try:
-            with LocalCluster(n_workers=32, threads_per_worker=1, processes=True,memory_limit='30GB') as cluster:
+            # TODO: parametrize arguments below in config.py
+            with LocalCluster(n_workers=2, threads_per_worker=1, processes=True,memory_limit='8GB') as cluster:
                 with Client(cluster) as client:
-                    client.run(init_logging)
+                    #client.run(init_logging)
                     dask.config.set({"distributed.comm.timeouts.tcp": "50s"})
                     for i in range(0,len(self.graph)+1):
                         if not self.process_node(i):
@@ -206,7 +207,8 @@ class ProcessOpeneoGraph():
                                                     outputCrs=outputCrs,
                                                     polygon=polygon,
                                                     resamplingMethod=resamplingMethod,
-                                                    crs=crs)
+                                                    crs=crs,
+                                                    job_id=self.job_id)
                 if len(odc_collection.data) == 0:
                     raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
                 self.partialResults[node.id] = odc_collection.data.to_array()

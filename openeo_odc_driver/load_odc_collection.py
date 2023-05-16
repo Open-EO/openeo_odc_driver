@@ -40,7 +40,9 @@ class LoadOdcCollection:
                  outputCrs=None,
                  polygon=None,
                  resamplingMethod=None,
-                 crs=None):
+                 crs=None,
+                 job_id=None):
+        _log.set_job_id(job_id)
         if OPENDATACUBE_CONFIG_FILE is not None:
             self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
         else: # Use ENV variables
@@ -61,6 +63,7 @@ class LoadOdcCollection:
         self.crs         = crs
         self.data        = None
         self.query       = None
+        self.job_id      = job_id # to be used 
         self.build_query()
         self.load_collection()
         if self.polygon is not None: # We mask the data with the given polygon, i.e. we set to zero the values outside the polygon
