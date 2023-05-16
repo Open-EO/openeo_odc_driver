@@ -9,9 +9,13 @@ from scipy.interpolate import griddata
 from scipy.spatial import Delaunay
 from scipy.interpolate import LinearNDInterpolator, NearestNDInterpolator
 from utils import create_S2grid
-import logging
+import sys 
+sys.path.append('../')
+import log_jobid
 
-_log = logging.getLogger(__name__)
+
+_log = log_jobid.LogJobID() 
+
 
 def geocode(data,parameters,tmp_folder):
     def chunk_cube(data, size = 1024):

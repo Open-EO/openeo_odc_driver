@@ -7,7 +7,7 @@
 # Not used currently (local cluster)
 DASK_SCHEDULER_ADDRESS = ""
 # Remember a slash at the end of this path. Same as the org.openeo.tmp.dir set in openeo-spring-driver if used together.
-RESULT_FOLDER_PATH        = "~/tmp/"
+RESULT_FOLDER_PATH        =  '/home/lmercurio/testtmp/' #  "~/tmp/"
 # list of available openEO processes. # TODO: this should be internally generated so that we don't rely on external sources.
 OPENEO_PROCESSES       = "https://openeo.eurac.edu/processes"
 
@@ -15,7 +15,7 @@ OPENEO_PROCESSES       = "https://openeo.eurac.edu/processes"
 # Not necessary if the following environment variables are set:
 # DB_HOSTNAME ENV DB_USERNAME ENV DB_PASSWORD ENV DB_DATABASE
 
-OPENDATACUBE_CONFIG_FILE = None
+OPENDATACUBE_CONFIG_FILE = "/home/lmercurio/.datacube.conf"
 
 #Used in openeo_odc_driver/odc_backend.py:
 
@@ -23,11 +23,13 @@ OPENDATACUBE_CONFIG_FILE = None
 FLASK_APP_NAME = 'openeo_odc_driver'
 
 # datacube-explorer endpoint. For local deployment it should be `http://0.0.0.0:9000` and for the Docker deployment `http://explorer:9000`
-DATACUBE_EXPLORER_ENDPOINT = "http://explorer:9000"
+DATACUBE_EXPLORER_ENDPOINT = "http://0.0.0.0:9001"
 
 USE_CACHED_COLLECTIONS = False
 
 JOB_LOG_FILE = 'jobs_log.csv'
+
+LOG_PATH = 'odc_backend_TEST.log'
 
 METADATA_FOLDER = "./"
 METADATA_CACHE_FOLDER = METADATA_FOLDER + "cache"

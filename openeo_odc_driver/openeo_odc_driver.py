@@ -58,23 +58,16 @@ from openeo_pg_parser.translate import translate_process_graph
 from openeo_error_messages import *
 from load_odc_collection import LoadOdcCollection
 from config import *
+import log_jobid
 
-def init_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler("odc_openeo_engine.log"),
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
-init_logging()
 
 logging.getLogger('rasterio').setLevel(logging.INFO)
 logging.getLogger('datacube').setLevel(logging.INFO)
 logging.getLogger('dask.distributed').setLevel(logging.INFO)
 
-_log = logging.getLogger(__name__)
+
+
+_log = log_jobid.LogJobID() 
 
 class ProcessOpeneoGraph():
     def __init__(self,jsonProcessGraph):

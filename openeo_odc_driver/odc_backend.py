@@ -17,16 +17,10 @@ from openeo_odc_driver import ProcessOpeneoGraph
 from config import *
 # from openeo_odc_driver.config import *
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("odc_backend.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
+import log_jobid
 
-_log = logging.getLogger(__name__)
+
+_log = log_jobid.LogJobID() 
 
 app = Flask(FLASK_APP_NAME)
 
@@ -59,6 +53,7 @@ def process_graph():
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
         df = df[df['job_id']!=job_id]
         df = df.append({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
+        #df = pd.concat([df, pd.DataFrame.from_dict({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()})], ignore_index=True) 
         df.to_csv(JOB_LOG_FILE)
         eo = ProcessOpeneoGraph(jsonGraph)
         return jsonify({'output':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format})

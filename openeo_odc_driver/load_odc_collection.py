@@ -20,17 +20,11 @@ import dea_tools.datahandling  # or some other submodule
 from config import *
 import logging
 import sys
+import log_jobid
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("odc_openeo_engine.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
 
-_log = logging.getLogger(__name__)
+_log = log_jobid.LogJobID() 
+
 
 class LoadOdcCollection:
     def __init__(self,

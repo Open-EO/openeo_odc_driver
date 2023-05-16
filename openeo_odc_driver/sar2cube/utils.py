@@ -9,11 +9,15 @@ import pandas as pd
 import sys
 import xarray as xr
 from scipy import spatial
-import logging
 from openeo_odc_driver.config import LATITUDE_LAYER_NAME, LONGITUDE_LAYER_NAME
 
-_log = logging.getLogger(__name__)
+import sys 
 
+sys.path.append('../')
+import log_jobid
+
+
+_log = log_jobid.LogJobID() 
 def check_S2grid(ulx, uly, lrx, lry,epsgout,spatialres):
     #Extract x,y reference coordinates for each zone
     s2gridpath = './resources/tabularize_s2_footprint.csv'
