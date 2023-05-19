@@ -1724,6 +1724,15 @@ class ProcessOpeneoGraph():
                     return 0
 
                 if out_format.lower() in ['netcdf','nc']:
+
+                    def convert_to_dataset(dataarray):
+                        # Get variable/band names if they are there
+                        if 'variable' in dataarray.dims:
+                            ds = dataarray.to_dataset(dim='variable')
+                        else:
+                            ds = dataarray.to_dataset(name='band')
+                        return ds
+
                     self.out_format = '.nc'
                     self.mimeType = 'application/octet-stream'
                     _log.info(node.arguments)
@@ -1749,31 +1758,41 @@ class ProcessOpeneoGraph():
                         else:
                             self.partialResults[source].to_netcdf(self.result_folder_path)
                         return 0
-                    tmp = self.partialResults[source]
+                    ds = convert_to_dataset(self.partialResults[source])
+                    compression_params = {"compression": "gzip", "compression_opts": 9}
+                    compression_dict = {}
+                    for d in ds.data_vars:
+                        compression_dict[d] = compression_params
+
+                    _log.info("compression dict")
+                    _log.info(compression_dict)
+
                     try:
-                        tmp['spatial_ref']
+                        ds['spatial_ref']
                     except Exception as e:
-                        tmp = tmp.rio.write_crs(self.crs)
-#                     tmp.attrs = self.partialResults[source].attrs
+                        ds = ds.rio.write_crs(self.crs)
+#                     ds.attrs = self.partialResults[source].attrs
 #                     self.partialResults[source].time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
                     try:
                         if self.returnFile:
-                            tmp.to_netcdf(self.result_folder_path + "/result.nc")
+                            ds.to_netcdf(self.result_folder_path + "/result2.nc")
+                            ds2 = xr.open_dataset(self.result_folder_path + "/result2.nc")
+                            ds2.to_netcdf(self.result_folder_path + "/result3.nc",engine="h5netcdf",encoding=compression_dict)
+                            ds.to_netcdf(self.result_folder_path + "/result.nc",engine="h5netcdf",encoding=compression_dict)
                         else:
-                            tmp.to_netcdf(self.result_folder_path)
+                            ds.to_netcdf(self.result_folder_path,engine="h5netcdf",encoding=compression_dict)
                         return 0
                     except Exception as e:
                         _log.info(e)
                         _log.info("Wrtiting netcdf failed, trying another time....")
                         pass
                     try:
-                        if 'units' in tmp.time.attrs:
-                            tmp.time.attrs.pop('units', None)
-                        
+                        if 'units' in ds.time.attrs:
+                            ds.time.attrs.pop('units', None)
                         if self.returnFile:
-                            tmp.to_netcdf(self.result_folder_path + "/result.nc")
+                            ds.to_netcdf(self.result_folder_path + "/result.nc",engine="h5netcdf",encoding=compression_dict)
                         else:
-                            tmp.to_netcdf(self.result_folder_path)
+                            ds.to_netcdf(self.result_folder_path,engine="h5netcdf",encoding=compression_dict)
                     except Exception as e:
                         _log.info(e)
                         _log.info("Wrtiting netcdf failed!")
