@@ -10,7 +10,8 @@ import sys
 import xarray as xr
 from scipy import spatial
 import logging
-from config import LATITUDE_LAYER_NAME, LONGITUDE_LAYER_NAME, S2_FOOTPRINT_FILE
+from config import *
+import datacube
 
 _log = logging.getLogger(__name__)
 
@@ -61,11 +62,11 @@ def create_S2grid(grid_lon,grid_lat,output_crs,spatialres):
     grid_y_irregular[grid_y_irregular==np.inf] = 0
     max_x = np.nanmax(grid_x_irregular)
     max_y = np.nanmax(grid_y_irregular)
-    _log.debug('Irregular grid bounds: ',min_x, min_y, max_x, max_y)
+    _log.debug(f'Irregular grid bounds: {min_x} {min_y} {max_x} {max_y}')
     output_crs_int = int(output_crs.split(':')[1])
-    _log.debug('Output CRS: ',output_crs_int)
+    _log.debug(f'Output CRS: {output_crs_int}')
     ulxgrid, ulygrid, lrxgrid, lrygrid = check_S2grid(min_x, max_y, max_x, min_y,output_crs_int,spatialres)
-    _log.debug('Aligned with S2 grid bounds: ',ulxgrid, lrygrid, lrxgrid, ulygrid)
+    _log.debug(f'Aligned with S2 grid bounds: {ulxgrid} {lrygrid} {lrxgrid} {ulygrid}')
     wout = int((lrxgrid - ulxgrid) / spatialres)
     hout = int((ulygrid - lrygrid) / spatialres)
     if spatialres==10:
