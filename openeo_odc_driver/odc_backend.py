@@ -71,18 +71,18 @@ def process_graph():
         df_cache = pd.read_csv(JOB_CACHE_FILE,index_col=0)
         if len(df_cache.loc[df_cache['hex_string']==hex_string]['path'].values)>0:
             path = df_cache.loc[df_cache['hex_string']==hex_string]['path'].values[0]
-            _log.info("+++++ PATH " + path)
+            _log.debug("CACHE PATH " + path)
             filename = path.split('/')[-1]
             if os.path.exists(RESULT_FOLDER_PATH + '/' + path):
                 if job_id == "None":
-                    result_folder_path = RESULT_FOLDER_PATH + str(uuid.uuid4())
-                else:
-                    result_folder_path = RESULT_FOLDER_PATH + job_id # If it is a batch job, there will be a field with it's id
+                    job_id = str(uuid.uuid4())
+                result_folder_path = RESULT_FOLDER_PATH + job_id # If it is a batch job, there will be a field with it's id
                 if not os.path.exists(result_folder_path):
                     os.mkdir(result_folder_path)
                 from shutil import copyfile
                 copyfile(RESULT_FOLDER_PATH + '/' + path, result_folder_path + '/' + filename)
-                return jsonify({'output':result_folder_path + '/' + filename})        
+                _log.debug("NEW PATH " + result_folder_path + '/' + filename)
+                return jsonify({'output':job_id + '/' + filename})        
     try:
         current_time = time.localtime()
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
