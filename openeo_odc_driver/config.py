@@ -7,7 +7,7 @@
 # Not used currently (local cluster)
 DASK_SCHEDULER_ADDRESS = ''
 # Remember a slash at the end of this path. Same as the org.openeo.tmp.dir set in openeo-spring-driver if used together.
-RESULT_FOLDER_PATH        = '~/tmp/'
+RESULT_FOLDER_PATH        = '/tmp/'
 # list of available openEO processes. # TODO: this should be internally generated so that we don't rely on external sources.
 OPENEO_PROCESSES       = 'https://openeo.eurac.edu/processes'
 
