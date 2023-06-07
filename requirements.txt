@@ -8,7 +8,7 @@ datacube
 numpy
 scipy
 folium
-pandas
+pandas<2.0.0
 xarray
 rioxarray
 rasterio
