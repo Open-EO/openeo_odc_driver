@@ -61,6 +61,23 @@ You can verify that the deployment was successfull visiting:
 
 `http://localhost:5001/collections/` for the openEO collections exposed via the openeo_odc_driver.
 
+<details><summary>
+  
+### Troubleshooting
+
+</summary>
+  
+#### make setup : `docker.errors.DockerException: Error while fetching server API version`
+
+After checking that the docker service is actually running, this might be then a permissions issue with the socket:
+
+```sh
+sudo chmod 666 /var/run/docker.sock
+```
+
+(credits: [Mafei@SO](https://stackoverflow.com/a/68179139/1329340))
+</details>
+
 ## Step 3: Test your environment with an openEO process graph:
 
 ```sh
