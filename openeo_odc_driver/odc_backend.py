@@ -119,7 +119,7 @@ def describe_collection(name):
     return jsonify(stacCollection)
 
 def construct_stac_collection(collectionName):
-    logging.info("[*] Constructing the metadata for {}".format(collectionName))
+    logging.info("Constructing the metadata for {}".format(collectionName)) #removed '[*]'
     if not os.path.exists(METADATA_CACHE_FOLDER):
         os.mkdir(METADATA_CACHE_FOLDER)
     if USE_CACHED_COLLECTIONS:
