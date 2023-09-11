@@ -92,16 +92,20 @@ def list_collections():
                 stacCollection = json.load(collection_list)
                 return jsonify(stacCollection)
     res = requests.get(DATACUBE_EXPLORER_ENDPOINT + "/products.txt")
-    datacubesList = res.text.split('\n')
     collections = {}
     collections['collections'] = []
-    collectionsList = []
-    for i,d in enumerate(datacubesList):
-        currentCollection = construct_stac_collection(d)
-        collectionsList.append(currentCollection)
-    collections['collections'] = collectionsList
-    with open(METADATA_COLLECTIONS_FILE, 'w') as outfile:
-        json.dump(collections, outfile)
+    if (not res.text.strip()):
+        logging.info("No products exposed by the ODC explorer.")
+    else:
+        datacubesList = res.text.split('\n')
+        collectionsList = []
+        for i,d in enumerate(datacubesList):
+            currentCollection = construct_stac_collection(d)
+            collectionsList.append(currentCollection)
+        collections['collections'] = collectionsList
+        with open(METADATA_COLLECTIONS_FILE, 'w') as outfile:
+            json.dump(collections, outfile)
+
     return jsonify(collections)
 
 
