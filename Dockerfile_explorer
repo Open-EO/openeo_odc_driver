@@ -1,0 +1,25 @@
+FROM andrejreznik/python-gdal:py3.10.0-gdal3.2.3
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LC_ALL=C.UTF-8 \
+    LANG=C.UTF-8 \
+    TINI_VERSION=v0.19.0
+
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
+RUN apt-get update && \
+    apt-get install -y \
+      build-essential \
+      git \
+      wget
+
+COPY requirements_explorer.txt /conf/
+
+RUN pip install --no-cache-dir --requirement /conf/requirements_explorer.txt
+
+WORKDIR /
+
+ENTRYPOINT ["/tini", "--"]
+
+CMD ["gunicorn","-b 0.0.0.0:9000","-w 1","cubedash:app"]

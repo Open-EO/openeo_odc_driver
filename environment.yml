@@ -1,24 +1,20 @@
-name: openeo_odc
+name: openeo_odc_driver
 channels:
 - conda-forge
 dependencies:
-- python=3.8
+- python=3.10
 - datacube
 - numpy
+- pandas
 - geopandas
 - geocube
 - xarray
 - rasterio
 - rioxarray
 - dask
-- dask-ml
 - distributed
-- dask-geopandas
-- xgboost
 - scikit-learn
 - scipy
-- pip
-- requests
 - libnetcdf
 - netCDF4
 - h5netcdf
@@ -44,5 +40,6 @@ dependencies:
     - openeo_r_udf
     - dea-tools
     - odc-algo
+    - datacube-explorer
     - git+https://github.com/Open-EO/openeo-pg-parser-python.git
      
