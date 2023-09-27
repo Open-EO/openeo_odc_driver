@@ -124,7 +124,7 @@ class LoadOdcCollection:
             if add_offset != 0 and add_offset is not None:
                 logging.info(f'add_offset: {add_offset}')
                 self.data[band] = self.data[band] + add_offset
-    
+
     def load_collection(self):
         datasets  = self.dc.find_datasets(time=(self.timeStart,self.timeEnd),**self.query)
         self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}             # This let us load the data as Dask chunks instead of numpy arrays
@@ -134,7 +134,6 @@ class LoadOdcCollection:
             else:
                 ##TODO add other method parsing here
                 self.query['resampling'] = self.resamplingMethod
-        
         try:
             self.data = self.dc.load(datasets=datasets,**self.query)
             if self.data.equals(xr.Dataset()):
