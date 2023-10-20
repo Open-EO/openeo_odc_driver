@@ -30,10 +30,7 @@ RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
   odc-dscache \
   odc-index
 
-RUN git clone https://github.com/Open-EO/openeo-pg-parser-python.git
-RUN cd openeo-pg-parser-python && pip install .
-
-RUN git clone https://github.com/SARScripts/openeo_odc_driver.git -b dev
+RUN git clone https://github.com/SARScripts/openeo_odc_driver.git -b dask_processes
 
 WORKDIR /
 
