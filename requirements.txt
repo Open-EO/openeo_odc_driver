@@ -7,7 +7,6 @@ requests
 datacube
 numpy
 scipy
-folium
 pandas<2.0.0
 xarray
 rioxarray
@@ -22,3 +21,5 @@ flask
 dea-tools
 gunicorn
 opencv-python
+openeo-processes-dask[implementations,ml]
+openeo-pg-parser-networkx

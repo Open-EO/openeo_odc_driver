@@ -12,9 +12,13 @@ import yaml
 import pandas as pd
 import time
 import logging
+from pathlib import Path
 
-from openeo_odc_driver import ProcessOpeneoGraph
 from config import *
+from sar2cube.utils import sar2cube_collection_extent
+from openeo_pg_parser_networkx.graph import OpenEOProcessGraph
+from processing import InitProcesses, output_format
+import uuid
 # from openeo_odc_driver.config import *
 
 logging.basicConfig(
@@ -60,8 +64,19 @@ def process_graph():
         df = df[df['job_id']!=job_id]
         df = df.append({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
         df.to_csv(JOB_LOG_FILE)
-        eo = ProcessOpeneoGraph(jsonGraph)
-        return jsonify({'output':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format})
+        if job_id == "None":
+            result_folder_path = RESULT_FOLDER_PATH + str(uuid.uuid4())
+        else:
+            result_folder_path = RESULT_FOLDER_PATH + job_id # If it is a batch job, there will be a field with it's id
+        try:
+            os.mkdir(result_folder_path)
+        except Exception as e:
+            _log.error(e)
+            pass
+        process_registry = InitProcesses(result_folder_path)
+        OpenEOProcessGraph(jsonGraph).to_callable(process_registry.process_registry)()
+        _log.info(result_folder_path.split('/')[-1] + '/result'+output_format())
+        return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()})
     except Exception as e:
         _log.error(e)
         return error400('ODC engine error in process: ' + str(e))
@@ -108,6 +123,39 @@ def list_collections():
 
     return jsonify(collections)
 
+@app.route('/processes', methods=['GET'])
+def list_processes():
+    if USE_CACHED_PROCESSES:
+        if os.path.isfile(METADATA_PROCESSES_FILE):
+            f = open(METADATA_PROCESSES_FILE)
+            with open(METADATA_PROCESSES_FILE) as processes_list:
+                return jsonify(json.load(processes_list))
+
+    from processing import InitProcesses, output_format
+    import openeo_processes_dask
+    
+    implemented_processes = []
+    processes = InitProcesses(None)
+    for p in processes.process_registry:
+        implemented_processes.append(p[1])
+    json_path = Path(openeo_processes_dask.__file__).parent / "specs" / "openeo-processes"
+    process_json_paths = [pg_path for pg_path in (json_path).glob("*.json")]
+
+    # Go through all the jsons in the top-level of the specs folder and add them to be importable from here
+    # E.g. from openeo_processes_dask.specs import *
+    # This is frowned upon in most python code, but I think here it's fine and allows a nice way of importing these
+    implemented_processes_json = []
+    for spec_path in process_json_paths:
+        spec_json = json.load(open(spec_path))
+        process_name = spec_json["id"]
+        if process_name in implemented_processes:
+            implemented_processes_json.append(spec_json)
+    implemented_processes_json = {"processes": implemented_processes_json}
+    with open(METADATA_PROCESSES_FILE, 'w') as outfile:
+        json.dump(implemented_processes_json, outfile)
+
+    return jsonify(implemented_processes_json)
+
 
 @app.route("/collections/<string:name>", methods=['GET'])
 def describe_collection(name):
@@ -148,7 +196,6 @@ def construct_stac_collection(collectionName):
     stacCollection['license'] = DEFAULT_DATA_LICENSE
     stacCollection['providers'] = [DEFAULT_DATA_PROVIDER]
     stacCollection['links'] = [DEFAULT_LINKS]
-    
     if "SAR2Cube" in collectionName:
         try:
             sar2cubeBbox = sar2cube_collection_extent(collectionName)

@@ -3,6 +3,7 @@
 # Date:   23/02/2023
 
 from pyproj import Proj, transform, Transformer, CRS
+import datacube
 import numpy as np
 import os
 import pandas as pd
@@ -10,7 +11,7 @@ import sys
 import xarray as xr
 from scipy import spatial
 import logging
-from config import LATITUDE_LAYER_NAME, LONGITUDE_LAYER_NAME, S2_FOOTPRINT_FILE
+from config import LATITUDE_LAYER_NAME, LONGITUDE_LAYER_NAME, S2_FOOTPRINT_FILE, OPENDATACUBE_CONFIG_FILE
 
 _log = logging.getLogger(__name__)
 

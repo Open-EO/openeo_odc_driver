@@ -46,7 +46,7 @@ setup(
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/SARScripts/openeo_odc_driver",
-    python_requires=">=3.8",
+    python_requires=">=3.9",
     packages=find_packages(include=["openeo_odc_driver*"]),
     include_package_data=True,
     # tests_require=tests_require,
@@ -65,11 +65,13 @@ setup(
         "proj",
         "gunicorn",
         "netCDF4",
+        "h5netcdf",
         "flask",
-        "opencv-python"
+        "opencv-python",
+        "openeo-processes-dask[implementations,ml]",
+        "openeo-pg-parser-networkx"
     ],
     classifiers=[
-        "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
