@@ -28,7 +28,7 @@ DATACUBE_EXPLORER_ENDPOINT = 'http://explorer:9000'
 USE_CACHED_COLLECTIONS = True
 USE_CACHED_PROCESSES = True
 
-LOG_PATH = '/logs/odc-driver/'
+LOG_PATH = '/logs/odc-driver/odc_backend.log'
 JOB_LOG_FILE = 'jobs_log.csv'
 
 METADATA_FOLDER = './'

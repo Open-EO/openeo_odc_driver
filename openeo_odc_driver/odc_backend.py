@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   23/02/2023
+# Date:   23/10/2023
 
 import os
 import signal
@@ -11,26 +11,18 @@ import requests
 import yaml
 import pandas as pd
 import time
-import logging
 from pathlib import Path
+import uuid
+
+from openeo_pg_parser_networkx.graph import OpenEOProcessGraph
+
+import log_jobid
+from processing import InitProcesses, output_format
+from sar2cube.utils import sar2cube_collection_extent
 
 from config import *
-from sar2cube.utils import sar2cube_collection_extent
-from openeo_pg_parser_networkx.graph import OpenEOProcessGraph
-from processing import InitProcesses, output_format
-import uuid
-# from openeo_odc_driver.config import *
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("odc_backend.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-_log = logging.getLogger(__name__)
+_log = log_jobid.LogJobID(LOG_PATH)
 
 app = Flask(FLASK_APP_NAME)
 
@@ -56,6 +48,8 @@ def process_graph():
         _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
         try:
             job_id = jsonGraph['id']
+            _log.set_job_id(job_id)
+            _log.info(f"Obtaining job id from graph: {job_id}")
         except Exception as e:
             _log.error(e)
             job_id = 'None'
@@ -85,6 +79,7 @@ def process_graph():
 def stop_job():
     try:
         job_id = request.args['id']
+        _log.job_id(job_id)
         _log.debug('Job id to cancel: {}'.format(job_id))
         if os.path.exists(JOB_LOG_FILE):
             df = pd.read_csv(JOB_LOG_FILE,index_col=0)
@@ -110,7 +105,7 @@ def list_collections():
     collections = {}
     collections['collections'] = []
     if (not res.text.strip()):
-        logging.info("No products exposed by the ODC explorer.")
+        _log.error("No products exposed by the ODC explorer.")
     else:
         datacubesList = res.text.split('\n')
         collectionsList = []
@@ -173,7 +168,7 @@ def describe_collection(name):
     return jsonify(stacCollection)
 
 def construct_stac_collection(collectionName):
-    logging.info("[*] Constructing the metadata for {}".format(collectionName))
+    _log.debug("Constructing the metadata for {}".format(collectionName))
     if not os.path.exists(METADATA_CACHE_FOLDER):
         os.mkdir(METADATA_CACHE_FOLDER)
     if USE_CACHED_COLLECTIONS:
@@ -201,7 +196,7 @@ def construct_stac_collection(collectionName):
             sar2cubeBbox = sar2cube_collection_extent(collectionName)
             stacCollection['extent']['spatial']['bbox'] = [sar2cubeBbox]
         except Exception as e:
-            logging.error(e)
+            _log.error(e)
             pass
 
     ### SUPPLEMENTARY METADATA FROM FILE

@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   23/02/2023
+# Date:   23/10/2023
 
 import datacube
 import numpy as np
@@ -10,27 +10,19 @@ from datetime import datetime
 from time import time
 import shapely
 from shapely.geometry import shape
+import sys
+import log_jobid
 #libraries for polygon and polygon mask
 import fiona
 import shapely.geometry
 import rasterio
 from datacube.utils import geometry
 from datacube.utils.geometry import Geometry, CRS
-import dea_tools.datahandling  # or some other submodule
+import dea_tools.datahandling
+# Import from config.py
 from config import *
-import logging
-import sys
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("odc_openeo_engine.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-_log = logging.getLogger(__name__)
+_log = log_jobid.LogJobID(LOG_PATH)
 
 class LoadOdcCollection:
     def __init__(self,
@@ -46,7 +38,11 @@ class LoadOdcCollection:
                  output_crs=None,
                  polygon=None,
                  resampling_method=None,
-                 crs=None):
+                 crs=None,
+                 job_id=None):
+
+        _log.set_job_id(job_id)
+
         if OPENDATACUBE_CONFIG_FILE is not None:
             self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
         else: # Use ENV variables
@@ -67,6 +63,7 @@ class LoadOdcCollection:
         self.crs         = crs
         self.data        = None
         self.query       = None
+        self.job_id      = job_id
         self.build_query()
         self.load_collection()
         if self.polygon is not None: # We mask the data with the given polygon, i.e. we set to zero the values outside the polygon
@@ -119,10 +116,10 @@ class LoadOdcCollection:
             if nodata is not None:
                 self.data[band] = self.data[band].where(self.data[band]!=nodata)
             if scale_factor != 0 and scale_factor is not None:
-                logging.info(f'Scale factor: {scale_factor}')
+                _log.debug(f'Scale factor: {scale_factor}')
                 self.data[band] = self.data[band] * scale_factor
             if add_offset != 0 and add_offset is not None:
-                logging.info(f'add_offset: {add_offset}')
+                _log.debug(f'add_offset: {add_offset}')
                 self.data[band] = self.data[band] + add_offset
 
     def load_collection(self):
