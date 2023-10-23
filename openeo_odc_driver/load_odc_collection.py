@@ -22,8 +22,6 @@ import dea_tools.datahandling
 # Import from config.py
 from config import *
 
-_log = log_jobid.LogJobID(LOG_PATH)
-
 class LoadOdcCollection:
     def __init__(self,
                  collection_id=None,
@@ -40,13 +38,14 @@ class LoadOdcCollection:
                  resampling_method=None,
                  crs=None,
                  job_id=None):
-
+        _log = log_jobid.LogJobID(file=LOG_PATH)
         _log.set_job_id(job_id)
 
         if OPENDATACUBE_CONFIG_FILE is not None:
             self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
         else: # Use ENV variables
             self.dc = datacube.Datacube()
+
         self.collection  = collection_id
         self.time_start   = time_start
         self.time_end     = self.exclusive_date(time_end)
@@ -66,6 +65,7 @@ class LoadOdcCollection:
         self.job_id      = job_id
         self.build_query()
         self.load_collection()
+
         if self.polygon is not None: # We mask the data with the given polygon, i.e. we set to zero the values outside the polygon
             self.apply_mask()
     

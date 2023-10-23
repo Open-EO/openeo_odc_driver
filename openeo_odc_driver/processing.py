@@ -15,16 +15,33 @@ from openeo_processes_dask.process_implementations.core import process
 from openeo_processes_dask.process_implementations.data_model import RasterCube
 from load_odc_collection import LoadOdcCollection
 
-_log = logging.getLogger(__name__)
+import log_jobid
+from config import *
 
 global RESULT_FOLDER
 global OUTPUT_FORMAT
+global JOB_ID
 
 def output_format():
     global OUTPUT_FORMAT
     return OUTPUT_FORMAT
 
+class JobId():
+    def __init__(self,job_id):
+        global JOB_ID
+        JOB_ID = job_id
+
+def get_job_id():
+    global JOB_ID
+    return JOB_ID
+
 def load_collection(*args, **kwargs):
+
+    global JOB_ID
+
+    _log = log_jobid.LogJobID(file=LOG_PATH)
+    _log.set_job_id(JOB_ID)
+
     from datetime import datetime
     from openeo_processes_dask.process_implementations.cubes._filter import (
         _reproject_bbox,
@@ -97,7 +114,8 @@ def load_collection(*args, **kwargs):
                                         output_crs=output_crs,
                                         polygon=polygon,
                                         resampling_method=resampling_method,
-                                        crs=crs)
+                                        crs=crs,
+                                        job_id=JOB_ID)
     if len(odc_collection.data) == 0:
         raise Exception("load_collection returned an empty dataset, please check the requested bands, spatial and temporal extent.")
     data = odc_collection.data.to_array(dim="bands")
@@ -108,9 +126,13 @@ def load_collection(*args, **kwargs):
 def save_result(*args, **kwargs):
     global RESULT_FOLDER
     global OUTPUT_FORMAT
+    global JOB_ID
+
+    _log = log_jobid.LogJobID(file=LOG_PATH)
+    _log.set_job_id(JOB_ID)
+
     _log.debug(f"Result folder: {RESULT_FOLDER}")
     pretty_args = {k: repr(v)[:80] for k, v in kwargs.items()}
-    _log.debug("Running process save_result")
     _log.debug(
             f"Running process save_result with resolved parameters: {pretty_args}"
         )

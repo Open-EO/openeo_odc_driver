@@ -17,12 +17,10 @@ import uuid
 from openeo_pg_parser_networkx.graph import OpenEOProcessGraph
 
 import log_jobid
-from processing import InitProcesses, output_format
+from processing import InitProcesses, JobId, output_format
 from sar2cube.utils import sar2cube_collection_extent
 
 from config import *
-
-_log = log_jobid.LogJobID(LOG_PATH)
 
 app = Flask(FLASK_APP_NAME)
 
@@ -37,6 +35,7 @@ def error400(error):
 
 @app.route('/graph', methods=['POST'])
 def process_graph():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     if not os.path.exists(JOB_LOG_FILE):
         lst = ['job_id', 'pid', 'creation_time']
         df = pd.DataFrame(columns=lst)
@@ -53,6 +52,10 @@ def process_graph():
         except Exception as e:
             _log.error(e)
             job_id = 'None'
+            _log.set_job_id(job_id)
+
+        JobId(job_id)
+
         current_time = time.localtime()
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
         df = df[df['job_id']!=job_id]
@@ -77,6 +80,7 @@ def process_graph():
     
 @app.route('/stop_job', methods=['DELETE'])
 def stop_job():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     try:
         job_id = request.args['id']
         _log.job_id(job_id)
@@ -95,6 +99,7 @@ def stop_job():
 
 @app.route('/collections', methods=['GET'])
 def list_collections():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     if USE_CACHED_COLLECTIONS:
         if os.path.isfile(METADATA_COLLECTIONS_FILE):
             f = open(METADATA_COLLECTIONS_FILE)
@@ -120,6 +125,7 @@ def list_collections():
 
 @app.route('/processes', methods=['GET'])
 def list_processes():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     if USE_CACHED_PROCESSES:
         if os.path.isfile(METADATA_PROCESSES_FILE):
             f = open(METADATA_PROCESSES_FILE)
@@ -168,6 +174,7 @@ def describe_collection(name):
     return jsonify(stacCollection)
 
 def construct_stac_collection(collectionName):
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     _log.debug("Constructing the metadata for {}".format(collectionName))
     if not os.path.exists(METADATA_CACHE_FOLDER):
         os.mkdir(METADATA_CACHE_FOLDER)
