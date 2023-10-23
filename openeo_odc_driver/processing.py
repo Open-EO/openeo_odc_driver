@@ -266,7 +266,7 @@ def save_result(*args, **kwargs):
         try:
             if 'units' in data.time.attrs:
                 data.time.attrs.pop('units', None) #TODO: use .openeo to get temporal dims
-            tmp.to_netcdf(RESULT_FOLDER + "/result.nc")
+            data.to_netcdf(RESULT_FOLDER + "/result.nc")
         except Exception as e:
             _log.error(e)
             _log.error("Wrtiting netcdf failed!")
