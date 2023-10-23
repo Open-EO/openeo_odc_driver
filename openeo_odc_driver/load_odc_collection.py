@@ -35,33 +35,33 @@ _log = logging.getLogger(__name__)
 class LoadOdcCollection:
     def __init__(self,
                  collection_id=None,
-                 timeStart=None,
-                 timeEnd=None,
+                 time_start=None,
+                 time_end=None,
                  south=None,
                  north=None,
                  west=None,
                  east=None,
                  bands=None,
                  resolutions=None,
-                 outputCrs=None,
+                 output_crs=None,
                  polygon=None,
-                 resamplingMethod=None,
+                 resampling_method=None,
                  crs=None):
         if OPENDATACUBE_CONFIG_FILE is not None:
             self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
         else: # Use ENV variables
             self.dc = datacube.Datacube()
         self.collection  = collection_id
-        self.timeStart   = timeStart
-        self.timeEnd     = self.exclusive_date(timeEnd)
+        self.time_start   = time_start
+        self.time_end     = self.exclusive_date(time_end)
         self.south       = south
         self.north       = north
         self.west        = west
         self.east        = east
         self.bands       = bands
         self.resolutions = resolutions
-        self.outputCrs   = outputCrs
-        self.resamplingMethod = resamplingMethod
+        self.output_crs   = output_crs
+        self.resampling_method = resampling_method
         self.polygon     = polygon
         self.geoms       = None
         self.crs         = crs
@@ -100,8 +100,8 @@ class LoadOdcCollection:
                 query['longitude'] = (self.east,self.west)
         if self.resolutions is not None:
             query['resolution'] = self.resolutions
-        if self.outputCrs  is not None:
-            query['output_crs'] = self.outputCrs
+        if self.output_crs  is not None:
+            query['output_crs'] = self.output_crs
         self.query = query
         
     def apply_scale_and_offset(self):
@@ -126,14 +126,14 @@ class LoadOdcCollection:
                 self.data[band] = self.data[band] + add_offset
 
     def load_collection(self):
-        datasets  = self.dc.find_datasets(time=(self.timeStart,self.timeEnd),**self.query)
+        datasets  = self.dc.find_datasets(time=(self.time_start,self.time_end),**self.query)
         self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}             # This let us load the data as Dask chunks instead of numpy arrays
-        if self.resamplingMethod  is not None:
-            if self.resamplingMethod == 'near':
+        if self.resampling_method  is not None:
+            if self.resampling_method == 'near':
                 self.query['resampling'] = 'nearest'
             else:
                 ##TODO add other method parsing here
-                self.query['resampling'] = self.resamplingMethod
+                self.query['resampling'] = self.resampling_method
         try:
             self.data = self.dc.load(datasets=datasets,**self.query)
             if self.data.equals(xr.Dataset()):
