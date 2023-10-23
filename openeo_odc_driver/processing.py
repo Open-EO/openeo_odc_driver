@@ -101,7 +101,7 @@ def load_collection(*args, **kwargs):
     if 'crs' in kwargs['spatial_extent'] and kwargs['spatial_extent']['crs'] is not None:
         crs = kwargs['spatial_extent']['crs']
 
-    print(collection,time_start,time_end,bands,south,north,west,east,resolutions,output_crs,polygon,resampling_method,crs)
+    _log.debug(collection,time_start,time_end,bands,south,north,west,east,resolutions,output_crs,polygon,resampling_method,crs)
     odc_collection = LoadOdcCollection(collection_id=collection,
                                         time_start=time_start,
                                         time_end=time_end,
