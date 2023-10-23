@@ -181,14 +181,10 @@ def save_result(*args, **kwargs):
 
     if out_format.lower() in ['gtiff','geotiff','tif','tiff']:
         OUTPUT_FORMAT = '.tiff'
-        # self.mimeType = 'image/tiff'
-
         if data.dtype == 'bool':
             data = data.astype(np.uint8)
         band_dims = None
         time_dim = None
-        _log.info(data.openeo.band_dims)
-        _log.info(data.openeo.temporal_dims)
         if data.openeo.band_dims is not None  and len(data.openeo.band_dims) > 0:
             band_dim = data.openeo.band_dims[0]
         if data.openeo.temporal_dims is not None and len(data.openeo.temporal_dims) > 0:
@@ -236,62 +232,24 @@ def save_result(*args, **kwargs):
         return
 
     if out_format.lower() in ['netcdf','nc']:
-        out_format = '.nc'
-        # self.mimeType = 'application/octet-stream'
-        _log.info(kwargs)
-        returnFile = True
-        # if 'options' in kwargs:
-        #     if 'dtype' in kwargs['options']:
-        #         data = data.astype(kwargs['options']['dtype'])
-        #     if 'path' in kwargs['options']:
-        #         outputFile = kwargs['options']['path']
-        #         outputFolder = ""
-        #         for i in range(1,len(outputFile.split('/'))-1):
-        #             outputFolder += '/' + outputFile.split('/')[i]
-        #         if 'mnt' not in outputFolder:
-        #             raise Exception("[!] Provided output path is not valid!")
-        #         if os.path.exists(outputFolder):
-        #             result_folder_path = outputFile
-        #             _log.info("New folder " + str(self.result_folder_path))
-        #             returnFile = False
-        #         else:
-        #             raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
-        # if 'params' in data.dims:
-        #     if returnFile:
-        #         data.to_netcdf(result_folder_path + "/result.nc")
-        #     else:
-        #         data.to_netcdf(result_folder_path)
-        #     return 0
-        tmp = data
+        OUTPUT_FORMAT = '.nc'
+        _log.debug(kwargs)
         try:
-            tmp['spatial_ref']
-        except Exception as e:
-            tmp = tmp.rio.write_crs(self.crs)
-#                     tmp.attrs = data.attrs
-#                     data.time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
-        try:
-            # if returnFile:
-            tmp.to_netcdf(RESULT_FOLDER + "/result.nc")
-            # else:
-                # tmp.to_netcdf(self.result_folder_path)
-            return 0
+            data.to_netcdf(RESULT_FOLDER + "/result.nc")
+            return
         except Exception as e:
             _log.info(e)
             _log.info("Wrtiting netcdf failed, trying another time....")
             pass
         try:
-            if 'units' in tmp.time.attrs:
-                tmp.time.attrs.pop('units', None)
-
-            # if returnFile:
+            if 'units' in data.time.attrs:
+                data.time.attrs.pop('units', None) #TODO: use .openeo to get temporal dims
             tmp.to_netcdf(RESULT_FOLDER + "/result.nc")
-            # else:
-                # tmp.to_netcdf(RESULT_FOLDER)
         except Exception as e:
-            _log.info(e)
-            _log.info("Wrtiting netcdf failed!")
+            _log.error(e)
+            _log.error("Wrtiting netcdf failed!")
             pass
-        return 0
+        return
 
     if out_format.lower() == 'json':
         self.out_format = '.json'
@@ -342,7 +300,7 @@ def save_result(*args, **kwargs):
     else:
         raise Exception("[!] Output format not recognized/implemented: {0}".format(out_format))
 
-    return 0 # Save result is the end of the process graph
+    return
 
 class InitProcesses():
     def __init__(self,result_folder):
