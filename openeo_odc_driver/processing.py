@@ -115,7 +115,7 @@ def save_result(*args, **kwargs):
             f"Running process save_result with resolved parameters: {pretty_args}"
         )
     data = kwargs['data']
-    out_format = kwargs['format'].__root__
+    out_format = kwargs['format']
     if out_format.lower() == 'png':
         OUTPUT_FORMAT = '.png'
         # mimeType = 'image/png'
