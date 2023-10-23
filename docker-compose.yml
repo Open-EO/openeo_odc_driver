@@ -44,7 +44,7 @@ services:
     ports:
       - 5001:5000
     volumes:
-      - /mnt/CEPH_OPENEO/data/odc-driver/:/data/odc_driver/
+      - /mnt/CEPH_OPENEO/data/odc-driver/:/data/odc-driver/
       - /mnt/CEPH_OPENEO/logs/odc-driver/:/logs/odc-driver/
     restart: always
     

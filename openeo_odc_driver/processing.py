@@ -236,31 +236,32 @@ def save_result(*args, **kwargs):
         return
 
     if out_format.lower() in ['netcdf','nc']:
-        self.out_format = '.nc'
-        self.mimeType = 'application/octet-stream'
+        out_format = '.nc'
+        # self.mimeType = 'application/octet-stream'
         _log.info(kwargs)
-        if 'options' in kwargs:
-            if 'dtype' in kwargs['options']:
-                data = data.astype(kwargs['options']['dtype'])
-            if 'path' in kwargs['options']:
-                outputFile = kwargs['options']['path']
-                outputFolder = ""
-                for i in range(1,len(outputFile.split('/'))-1):
-                    outputFolder += '/' + outputFile.split('/')[i]
-                if 'mnt' not in outputFolder:
-                    raise Exception("[!] Provided output path is not valid!")
-                if os.path.exists(outputFolder):
-                    self.result_folder_path = outputFile
-                    _log.info("New folder " + str(self.result_folder_path))
-                    self.returnFile = False
-                else:
-                    raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
-        if 'params' in data.dims:
-            if self.returnFile:
-                data.to_netcdf(self.result_folder_path + "/result.nc")
-            else:
-                data.to_netcdf(self.result_folder_path)
-            return 0
+        returnFile = True
+        # if 'options' in kwargs:
+        #     if 'dtype' in kwargs['options']:
+        #         data = data.astype(kwargs['options']['dtype'])
+        #     if 'path' in kwargs['options']:
+        #         outputFile = kwargs['options']['path']
+        #         outputFolder = ""
+        #         for i in range(1,len(outputFile.split('/'))-1):
+        #             outputFolder += '/' + outputFile.split('/')[i]
+        #         if 'mnt' not in outputFolder:
+        #             raise Exception("[!] Provided output path is not valid!")
+        #         if os.path.exists(outputFolder):
+        #             result_folder_path = outputFile
+        #             _log.info("New folder " + str(self.result_folder_path))
+        #             returnFile = False
+        #         else:
+        #             raise Exception("[!] Provided output path is not valid! The folder " + outputFolder + " does not exist!")
+        # if 'params' in data.dims:
+        #     if returnFile:
+        #         data.to_netcdf(result_folder_path + "/result.nc")
+        #     else:
+        #         data.to_netcdf(result_folder_path)
+        #     return 0
         tmp = data
         try:
             tmp['spatial_ref']
@@ -269,10 +270,10 @@ def save_result(*args, **kwargs):
 #                     tmp.attrs = data.attrs
 #                     data.time.encoding['units'] = "seconds since 1970-01-01 00:00:00"
         try:
-            if self.returnFile:
-                tmp.to_netcdf(self.result_folder_path + "/result.nc")
-            else:
-                tmp.to_netcdf(self.result_folder_path)
+            # if returnFile:
+            tmp.to_netcdf(RESULT_FOLDER + "/result.nc")
+            # else:
+                # tmp.to_netcdf(self.result_folder_path)
             return 0
         except Exception as e:
             _log.info(e)
@@ -282,10 +283,10 @@ def save_result(*args, **kwargs):
             if 'units' in tmp.time.attrs:
                 tmp.time.attrs.pop('units', None)
 
-            if self.returnFile:
-                tmp.to_netcdf(self.result_folder_path + "/result.nc")
-            else:
-                tmp.to_netcdf(self.result_folder_path)
+            # if returnFile:
+            tmp.to_netcdf(RESULT_FOLDER + "/result.nc")
+            # else:
+                # tmp.to_netcdf(RESULT_FOLDER)
         except Exception as e:
             _log.info(e)
             _log.info("Wrtiting netcdf failed!")
