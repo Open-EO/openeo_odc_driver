@@ -1,6 +1,5 @@
 aiohttp
 aiobotocore[boto3,awscli]==1.0.7
-odc-apps-dc-tools==0.2.1
 pyyaml
 wget
 requests

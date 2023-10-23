@@ -7,15 +7,15 @@
 # Not used currently (local cluster)
 DASK_SCHEDULER_ADDRESS = ''
 # Remember a slash at the end of this path. Same as the org.openeo.tmp.dir set in openeo-spring-driver if used together.
-RESULT_FOLDER_PATH        = '/mnt/large_drive/work_spaces/mclaus/tmp/'
+RESULT_FOLDER_PATH        = '/data/odc-driver/'
 # list of available openEO processes. # TODO: this should be internally generated so that we don't rely on external sources.
-OPENEO_PROCESSES       = 'https://gist.githubusercontent.com/clausmichele/7bb949270f031db11e8a78a617144b78/raw/1380bac32442150cddfd70cff23eb79119efd166/test_processes_2.json'
+# OPENEO_PROCESSES       = 'https://gist.githubusercontent.com/clausmichele/7bb949270f031db11e8a78a617144b78/raw/1380bac32442150cddfd70cff23eb79119efd166/test_processes_2.json'
 
 # Used in openeo_odc_driver/odc_backend.py and openeo_odc_driver/load_odc_collection.py
 # Not necessary if the following environment variables are set:
 # DB_HOSTNAME ENV DB_USERNAME ENV DB_PASSWORD ENV DB_DATABASE
 
-OPENDATACUBE_CONFIG_FILE = '/home/mclaus@eurac.edu/.datacube.conf'
+OPENDATACUBE_CONFIG_FILE = ''
 
 #Used in openeo_odc_driver/odc_backend.py:
 
@@ -23,11 +23,12 @@ OPENDATACUBE_CONFIG_FILE = '/home/mclaus@eurac.edu/.datacube.conf'
 FLASK_APP_NAME = 'openeo_odc_driver'
 
 # datacube-explorer endpoint. For local deployment it should be `http://0.0.0.0:9000` and for the Docker deployment `http://explorer:9000`
-DATACUBE_EXPLORER_ENDPOINT = 'http://10.8.244.121:9000'
+DATACUBE_EXPLORER_ENDPOINT = 'http://explorer:9000'
 
 USE_CACHED_COLLECTIONS = True
 USE_CACHED_PROCESSES = True
 
+LOG_PATH = '/logs/odc-driver/'
 JOB_LOG_FILE = 'jobs_log.csv'
 
 METADATA_FOLDER = './'

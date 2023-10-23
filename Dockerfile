@@ -17,9 +17,12 @@ RUN apt-get update && \
       libsm6 \ 
       libxext6 
 
-COPY requirements.txt /conf/
+COPY ./ /openeo_odc_driver
 
-RUN pip install --no-cache-dir --requirement /conf/requirements.txt
+RUN pip install --no-cache-dir --requirement /openeo_odc_driver/requirements.txt
+RUN ls
+RUN git clone https://github.com/clausmichele/odc-tools.git
+RUN pip install odc-tools/apps/dc_tools
 RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
   odc-ui \
   odc-stac \
@@ -29,8 +32,6 @@ RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
   odc-cloud[ASYNC] \
   odc-dscache \
   odc-index
-
-RUN git clone https://github.com/SARScripts/openeo_odc_driver.git -b dask_processes
 
 WORKDIR /
 
