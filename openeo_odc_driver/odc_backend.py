@@ -12,10 +12,12 @@ import yaml
 import pandas as pd
 import time
 import logging
+import hashlib
+import uuid
 
 from openeo_odc_driver import ProcessOpeneoGraph
+from sar2cube.utils import sar2cube_collection_extent
 from config import *
-# from openeo_odc_driver.config import *
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,7 +40,6 @@ def error500(error):
 def error400(error):
     return error, 400
 
-
 @app.route('/graph', methods=['POST'])
 def process_graph():
     if not os.path.exists(JOB_LOG_FILE):
@@ -47,20 +48,55 @@ def process_graph():
         df.to_csv(JOB_LOG_FILE)
     else:
         df = pd.read_csv(JOB_LOG_FILE,index_col=0)
+
     jsonGraph = request.json
+
+    _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
     try:
-        _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
-        try:
-            job_id = jsonGraph['id']
-        except Exception as e:
-            _log.error(e)
-            job_id = 'None'
+        job_id = jsonGraph['id']
+    except Exception as e:
+        _log.error(e)
+        job_id = 'None'
+            
+    pg = jsonGraph["process_graph"]
+    m = hashlib.md5()
+    m.update(str(pg).encode('utf8'))
+    hex_string = str(m.digest())
+
+    if not os.path.exists(JOB_CACHE_FILE):
+        lst = ['hex_string', 'path']
+        df_cache = pd.DataFrame(columns=lst)
+        df_cache.to_csv(JOB_CACHE_FILE)
+    else:
+        df_cache = pd.read_csv(JOB_CACHE_FILE,index_col=0)
+        if len(df_cache.loc[df_cache['hex_string']==hex_string]['path'].values)>0:
+            path = df_cache.loc[df_cache['hex_string']==hex_string]['path'].values[0]
+            _log.debug("CACHE PATH " + path)
+            filename = path.split('/')[-1]
+            if os.path.exists(RESULT_FOLDER_PATH + '/' + path):
+                if job_id == "None":
+                    job_id = str(uuid.uuid4())
+                result_folder_path = RESULT_FOLDER_PATH + job_id # If it is a batch job, there will be a field with it's id
+                if not os.path.exists(result_folder_path):
+                    os.mkdir(result_folder_path)
+                from shutil import copyfile
+                copyfile(RESULT_FOLDER_PATH + '/' + path, result_folder_path + '/' + filename)
+                _log.debug("NEW PATH " + result_folder_path + '/' + filename)
+                return jsonify({'output':job_id + '/' + filename})        
+    try:
         current_time = time.localtime()
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
+        
         df = df[df['job_id']!=job_id]
         df = df.append({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
         df.to_csv(JOB_LOG_FILE)
+        
         eo = ProcessOpeneoGraph(jsonGraph)
+        
+        df_cache = df_cache[df_cache['hex_string']!=hex_string]
+        df_cache = df_cache.append({'hex_string':hex_string,'path':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format},ignore_index=True)
+        df_cache.to_csv(JOB_CACHE_FILE)
+        
         return jsonify({'output':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format})
     except Exception as e:
         _log.error(e)
