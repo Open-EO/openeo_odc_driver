@@ -197,7 +197,12 @@ def construct_stac_collection(collectionName):
     stacCollection['stac_extensions'] = ['datacube']
     stacCollection['license'] = DEFAULT_DATA_LICENSE
     stacCollection['providers'] = [DEFAULT_DATA_PROVIDER]
-    stacCollection['links'] = [DEFAULT_LINKS]
+    default_links = DEFAULT_LINKS
+    if OGC_COVERAGE:
+        ogc_coverage_link = DEFAULT_LINK_OGC_COVERAGE
+        ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName)
+        default_links.append(ogc_coverage_link)
+    stacCollection['links'] = default_links
     if "SAR2Cube" in collectionName:
         try:
             sar2cubeBbox = sar2cube_collection_extent(collectionName)
