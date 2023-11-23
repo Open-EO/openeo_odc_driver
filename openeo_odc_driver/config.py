@@ -41,7 +41,7 @@ DEFAULT_DATA_PROVIDER = {'name': 'Eurac EO ODC', 'url': 'http://www.eurac.edu/',
 DEFAULT_DATA_LICENSE = 'CC-BY-4.0'
 DEFAULT_LINKS = [{'rel' : 'license', 'href' : 'https://creativecommons.org/licenses/by/4.0/', 'type' : 'text/html', 'title' : 'License link'}]
 OGC_COVERAGE = True
-DEFAULT_LINK_OGC_COVERAGE = {'rel' : 'http://www.opengis.net/def/rel/ogc/1.0/coverage', 'href' : OPENEO_BACKEND + 'collections/COLLECTION_NAME/coverage', 'type' : 'application/netcdf', 'title' : 'Coverage link'}
+DEFAULT_LINK_OGC_COVERAGE = {'rel' : 'http://www.opengis.net/def/rel/ogc/1.0/coverage', 'href' : OPENEO_BACKEND + 'collections/COLLECTION_NAME/coverage', 'type' : ['application/netcdf','image/tiff; application=geotiff'], 'title' : 'Coverage link'}
 DEFAULT_TEMPORAL_DIMENSION_NAME = 'DATE'
 DEFAULT_X_DIMENSION_NAME = 'X'
 DEFAULT_Y_DIMENSION_NAME = 'Y'
