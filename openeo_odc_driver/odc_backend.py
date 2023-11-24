@@ -13,6 +13,7 @@ import pandas as pd
 import time
 from pathlib import Path
 import uuid
+import copy
 
 from openeo_pg_parser_networkx.graph import OpenEOProcessGraph
 
@@ -199,9 +200,11 @@ def construct_stac_collection(collectionName):
     stacCollection['providers'] = [DEFAULT_DATA_PROVIDER]
     default_links = DEFAULT_LINKS
     if OGC_COVERAGE:
-        ogc_coverage_link = DEFAULT_LINK_OGC_COVERAGE
-        ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName)
-        default_links.append(ogc_coverage_link)
+        for mime in SUPPORTED_MIME_OGC_COVERAGE:
+            ogc_coverage_link = copy.deepcopy(DEFAULT_LINK_OGC_COVERAGE)
+            ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName)
+            ogc_coverage_link['type'] = mime
+            default_links.append(ogc_coverage_link)
     stacCollection['links'] = default_links
     if "SAR2Cube" in collectionName:
         try:

@@ -28,10 +28,14 @@ RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
   odc-cloud[ASYNC] \
   odc-dscache \
   odc-index
+  
+COPY ./requirements.txt /
 
-COPY ./ /openeo_odc_driver
+RUN pip install --requirement /requirements.txt
 
-RUN pip install --no-cache-dir --requirement /openeo_odc_driver/requirements.txt
+ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
+
+COPY . /openeo_odc_driver
 
 WORKDIR /
 

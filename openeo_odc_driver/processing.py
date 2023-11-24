@@ -214,18 +214,9 @@ def save_result(*args, **kwargs):
             if len(data[time_dim])>=1 and len(data[band_dim])==1:
                 # We keep the time dimension as band in the GeoTiff, timeseries of a single band/variable
                 data = data.squeeze(band_dims).to_dataset(name='result')
-            elif (len(data[time_dim]==1) and len(data[band_dim]>=1)):
+            elif len(data[time_dim])==1 and len(data[band_dim])>=1:
                 # We keep the time variable as band in the GeoTiff, multiple band/variables of the same timestamp
-                data = data.squeeze([time_dim])
-                data_ds = xr.Dataset(
-                                            coords={
-                                                "y": (["y"],data.y),
-                                                "x": (["x"],data.x)
-                                            },
-                                        )
-                for b in data[band_dim]:
-                    data_ds[str(b.values)] = (("y", "x"),data.loc[dict(band_dim=b.values)])
-                data = data_ds
+                data = data.drop([time_dim]).squeeze([time_dim])
             else:
                 raise Exception("[!] Not possible to write a 4-dimensional GeoTiff, use NetCDF instead.")
         else:
