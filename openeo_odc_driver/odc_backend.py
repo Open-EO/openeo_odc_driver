@@ -202,9 +202,14 @@ def construct_stac_collection(collectionName):
     if OGC_COVERAGE:
         for mime in SUPPORTED_MIME_OGC_COVERAGE:
             ogc_coverage_link = copy.deepcopy(DEFAULT_LINK_OGC_COVERAGE)
-            ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName)
+            if "netcdf" in mime:
+                ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName) + "&f=netcdf"
+            elif "tif" in mime:
+                ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName) + "&f=geotiff"
             ogc_coverage_link['type'] = mime
             default_links.append(ogc_coverage_link)
+        # Add self as suggested here: https://docs.ogc.org/DRAFTS/20-024.html#_response
+        default_links.append({'rel' : 'self', 'href' : OPENEO_BACKEND + 'collections/' + collectionName, 'type' : 'application/json'})
     stacCollection['links'] = default_links
     if "SAR2Cube" in collectionName:
         try:
