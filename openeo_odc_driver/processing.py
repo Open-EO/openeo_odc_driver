@@ -258,9 +258,24 @@ def save_result(*args, **kwargs):
                 data.time.attrs.pop('units', None) #TODO: use .openeo to get temporal dims
             data.to_netcdf(RESULT_FOLDER + "/result.nc")
         except Exception as e:
+            _log.info(e)
+            _log.info("Wrtiting netcdf failed, trying another time....")
+            pass
+        try:
+            # Remove problematic attributes and coordinates, which prevent to write a valid netCDF file
+            for at in data.attrs:
+                # allowed types: str, Number, ndarray, number, list, tuple
+                if not isinstance(data.attrs[at], (int, float, str, np.ndarray, list, tuple)):
+                    data.attrs[at] = str(data.attrs[at])
+
+            for c in data.coords:
+                if data[c].dtype=="object":
+                    data = data.drop_vars(c)            
+
+            data.to_netcdf(RESULT_FOLDER + "/result.nc")
+        except Exception as e:
             _log.error(e)
             _log.error("Wrtiting netcdf failed!")
-            pass
         return
 
     if out_format.lower() == 'json':
