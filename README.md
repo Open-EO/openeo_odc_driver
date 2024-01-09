@@ -1,17 +1,15 @@
-# OpenEO ODC Driver
-OpenEO processing engine written in Python based on OpenDataCube, Xarray and Dask.
-
-**Please note: this project is still under development and many changes will occur in the next months.**
-
-Currently it is based on openEO processes implemented in this repository together with the openEO process graph parser from https://github.com/Open-EO/openeo-pg-parser-python
-
-The next phase of the project will use the process implementations available at [openeo-processes-dask](https://github.com/Open-EO/openeo-processes-dask/) and the parser [openeo-pg-parser-networkx](https://github.com/Open-EO/openeo-pg-parser-networkx).
-
 <p float="center">
   <img src="https://avatars.githubusercontent.com/u/23743223?s=200&v=4" width="200" hspace="20"/>
   <img src="https://avatars.githubusercontent.com/u/26125288?s=200&v=4" width="200" hspace="20"/>
   <img src="https://avatars.githubusercontent.com/u/63704085?s=200&v=4" width="200" hspace="20"/>  
 </p>
+
+# OpenEO ODC Driver
+OpenEO processing engine written in Python based on OpenDataCube, Xarray and Dask.
+
+Based on openEO processes implemented at [openeo-processes-dask](https://github.com/Open-EO/openeo-processes-dask/) and the parser [openeo-pg-parser-networkx](https://github.com/Open-EO/openeo-pg-parser-networkx).
+
+The `load_collection` process implementation is not part of the openeo-processes-dask repo but it's included here, where it leverages OpenDataCube for data loading: https://github.com/SARScripts/openeo_odc_driver/blob/037a5592c05044d4451d3896c0455414f34dd8f4/openeo_odc_driver/processing.py#L38
 
 # Docker deployment:
 
@@ -23,7 +21,7 @@ It also requires `make` to use the Makefile. If you don't have it and/or you can
 
 ## Step 1: Clone the repository
 ```sh
-git clone https://github.com/SARScripts/openeo_odc_driver.git -b dev
+git clone https://github.com/SARScripts/openeo_odc_driver.git -b dask_processes
 cd openeo_odc_driver
 ```
 
@@ -87,113 +85,3 @@ python tests/test_process_graph.py ./tests/process_graphs/NDVI_Bolzano_median.js
 ![image](https://user-images.githubusercontent.com/31700619/220927309-cd4be598-4f93-43cf-ac17-d6dbaa1a2bc3.png)
 
 ![image](https://user-images.githubusercontent.com/31700619/220927197-5fccca3a-fff4-4311-9c99-af7c6c4d08f4.png)
-
-# Local installation instructions:
-
-## Step 1: Clone the repository
-```sh
-git clone https://github.com/SARScripts/openeo_odc_driver.git -b dev
-cd openeo_odc_driver
-```
-
-## Step 2: Prepare the python environment
-
-New ad-hoc conda environment:
-```sh
-conda env create -f environment.yml
-conda activate openeo_odc_driver
-```
-
-## Step 3:
-Modify the `config.py` file with your system's details:
-1. Set the datacube-explorer address. For local deployment it should be `http://0.0.0.0:9000` and for the Docker deployment `http://explorer:9000`.
-```python
-DATACUBE_EXPLORER_ENDPOINT = "http://0.0.0.0:9000"
-```
-
-2. Set the OpenDatCube config file `.datacube.conf` path or leave it to None if ENV variables are set (like in the Docker deployment).
-```python
-OPENDATACUBE_CONFIG_FILE = ~/.datacube.conf # or None
-```
-
-3. Set the result folder path to write output files. If this application is used together with the [openeo-sping-driver](https://github.com/Open-EO/openeo-spring-driver), used for serving the full openEO API, this folder should be the same as the one set in `application.properties` for `org.openeo.tmp.dir`, so that the `openeo-spring-driver` can read the result directly from there.
-```python
-RESULT_FOLDER_PATH = ''
-```
-
-4. The `OPENEO_PROCESSES` variable is used to retrieve the list of available openEO processes. It can be the path to a json file, a dictionaty or an http address. See [here](https://github.com/Open-EO/openeo-pg-parser-python/blob/798668e461ec2a0d3153873413afb0a76a72b61a/src/openeo_pg_parser/translate.py#L263) for detailed info. The dault value is the /processes endpoint of the Eurac openEO back-end.
-```python
-OPENEO_PROCESSES = "https://openeo.eurac.edu/processes"
-```
-
-The other config parameters could be looked at later on and are not affecting the `openeo_odc_driver` functionality. In the config.py file there are comments explaining their usage.
-
-## Step 4: Start the web server:
-```sh
-gunicorn -c gunicorn.conf.py odc_backend:app
-```
-
-# Implemented OpenEO processes (to be updated)
-## aggregate & resample
-- resample_cube_temporal
-- resample_cube_spatial
-- aggregate_spatial
-- aggregate_spatial_window
-- aggregate_temporal_period
-## arrays
-- array_element
-- array_interpolate_linear
-## comparison
-- if
-- lt
-- lte
-- gt
-- gte
-- eq
-- neq
-## cubes
-- load_collection
-- save_result (PNG,GTIFF,NETCDF,JSON)
-- reduce_dimension
-- add_dimension
-- apply_dimension
-- filter_bands
-- filter_temporal
-- filter_spatial
-- filter_bbox
-- rename_labels
-- merge_cubes
-- apply
-- fit_curve
-- predict_curve
-- resample_cube_spatial
-- resample_cube_temporal 
-## logic
-- and
-- or
-## masks
-- mask
-## math
-- multiply
-- divide
-- subtract
-- add
-- sum
-- product
-- sqrt
-- normalized_difference
-- min
-- max
-- mean
-- median
-- power
-- absolute
-- linear_scale_range
-- log
-- ln
-- quantiles
-- clip
-## experimental processes (SAR2Cube)
-- coherence
-- geocoding
-- radar_mask
