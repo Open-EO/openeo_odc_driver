@@ -32,7 +32,7 @@ index: ## 4. Index some data (Change extents with BBOX='<left>,<bottom>,<right>,
 			--bbox='$(BBOX)' \
 			--catalog-href='https://earth-search.aws.element84.com/v1/' \
 			--collections='sentinel-2-l2a' \
-			--datetime='2015-01-01/2023-01-10'"
+			--datetime='2015-01-01/2024-05-06'"
 
 explorer: ## 5. Prepare the explorer
 	docker compose exec -T explorer cubedash-gen --init --all

@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   23/10/2023
+# Date:   06/05/2024
 
 import os
 import signal
@@ -62,19 +62,26 @@ def process_graph():
         df = df[df['job_id']!=job_id]
         df = df.append({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
         df.to_csv(JOB_LOG_FILE)
+        is_batch_job = False
         if job_id == "None":
             result_folder_path = RESULT_FOLDER_PATH + str(uuid.uuid4())
         else:
+            is_batch_job = True
             result_folder_path = RESULT_FOLDER_PATH + job_id # If it is a batch job, there will be a field with it's id
         try:
             os.mkdir(result_folder_path)
         except Exception as e:
             _log.error(e)
             pass
-        process_registry = InitProcesses(result_folder_path)
-        OpenEOProcessGraph(jsonGraph).to_callable(process_registry.process_registry)()
-        _log.info(result_folder_path.split('/')[-1] + '/result'+output_format())
-        return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()})
+        process_registry = InitProcesses(result_folder_path,is_batch_job)
+        stac_result = OpenEOProcessGraph(jsonGraph).to_callable(process_registry.process_registry)()
+        if stac_result is not None:
+            _log.debug("Returning STAC Collection for the result.")
+            _log.debug(stac_result)
+            return jsonify(stac_result)
+        else:
+            _log.debug(result_folder_path.split('/')[-1] + '/result'+output_format())
+            return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()})
     except Exception as e:
         _log.error(e)
         return error400('ODC engine error in process: ' + str(e))

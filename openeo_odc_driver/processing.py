@@ -21,6 +21,7 @@ from config import *
 global RESULT_FOLDER
 global OUTPUT_FORMAT
 global JOB_ID
+global IS_BATCH_JOB
 
 def output_format():
     global OUTPUT_FORMAT
@@ -126,6 +127,7 @@ def save_result(*args, **kwargs):
     global RESULT_FOLDER
     global OUTPUT_FORMAT
     global JOB_ID
+    global IS_BATCH_JOB
 
     _log = log_jobid.LogJobID(file=LOG_PATH)
     _log.set_job_id(JOB_ID)
@@ -201,45 +203,75 @@ def save_result(*args, **kwargs):
         return
 
     if out_format.lower() in ['gtiff','geotiff','tif','tiff']:
-        OUTPUT_FORMAT = '.tiff'
-        if data.dtype == 'bool':
-            data = data.astype(np.uint8)
-        band_dims = None
-        time_dim = None
-        if data.openeo.band_dims is not None  and len(data.openeo.band_dims) > 0:
-            band_dim = data.openeo.band_dims[0]
-        if data.openeo.temporal_dims is not None and len(data.openeo.temporal_dims) > 0:
-            time_dim = data.openeo.temporal_dims[0]
-        if len(data.dims) > 3:
-            if len(data[time_dim])>=1 and len(data[band_dim])==1:
-                # We keep the time dimension as band in the GeoTiff, timeseries of a single band/variable
-                data = data.squeeze(band_dims).to_dataset(name='result')
-            elif len(data[time_dim])==1 and len(data[band_dim])>=1:
-                # We keep the time variable as band in the GeoTiff, multiple band/variables of the same timestamp
-                data = data.drop([time_dim]).squeeze([time_dim])
-            else:
-                raise Exception("[!] Not possible to write a 4-dimensional GeoTiff, use NetCDF instead.")
+        # If batch job: return STAC Collection
+        # If not (sync call) return single file
+        if IS_BATCH_JOB:
+            from raster2stac import Raster2STAC
+            job_id = get_job_id()
+            rs2stac = Raster2STAC(
+                data = data, # The input xarray object which will be converted into COGs
+                collection_id = job_id, # The Collection id we want to set
+                description = f"openEO results for the job with id {job_id}",
+                collection_url = STAC_API_URL, # The URL where the collection will be exposed
+                output_folder = RESULT_FOLDER,
+                # If this runs in a Docker, the files path will be the ones of the Docker internal structure. It's necessary to change the paths to the external folder mounted by Docker so that the files referred in the STAC document can also be accessble from outside the Docker (but with data access to the drive)
+                # /mnt/large_drive/work_spaces/mclaus/data/odc-driver/:/data/odc-driver/
+                write_collection_assets=True
+            ).generate_cog_stac()
+            # Now we should have the resulting COGs and STAC json STAC files. We can POST them to the STAC Catalog
+            import requests
+            import json
+            with open(f"{RESULT_FOLDER}/{job_id}.json","r") as f:
+                stac_collection_to_post = json.load(f)
+            if POST_RESULTS_TO_STAC:
+                requests.post(STAC_API_URL,json=stac_collection_to_post)
+                stac_items = []
+                with open(f"{RESULT_FOLDER}/inline_items.csv","r") as f:
+                    stac_items = f.readlines()
+                for it in stac_items:
+                    stac_data_to_post = json.loads(it)
+                    requests.post(f"{STAC_API_URL}{job_id}/items",json=stac_data_to_post)
+            return stac_collection_to_post
         else:
-            data = data 
+            OUTPUT_FORMAT = '.tiff'
+            if data.dtype == 'bool':
+                data = data.astype(np.uint8)
+            band_dims = None
+            time_dim = None
+            if data.openeo.band_dims is not None  and len(data.openeo.band_dims) > 0:
+                band_dim = data.openeo.band_dims[0]
+            if data.openeo.temporal_dims is not None and len(data.openeo.temporal_dims) > 0:
+                time_dim = data.openeo.temporal_dims[0]
+            if len(data.dims) > 3:
+                if len(data[time_dim])>=1 and len(data[band_dim])==1:
+                    # We keep the time dimension as band in the GeoTiff, timeseries of a single band/variable
+                    data = data.squeeze(band_dims).to_dataset(name='result')
+                elif len(data[time_dim])==1 and len(data[band_dim])>=1:
+                    # We keep the time variable as band in the GeoTiff, multiple band/variables of the same timestamp
+                    data = data.drop([time_dim]).squeeze([time_dim])
+                else:
+                    raise Exception("[!] Not possible to write a 4-dimensional GeoTiff, use NetCDF instead.")
+            else:
+                data = data 
 
-        # This is required as a workaround to this issue: https://github.com/Open-EO/openeo-web-editor/issues/280
-        ### Start of workaround
-        if 'y' in data.dims:
-            if len(data.y)>1:
-                if data.y[0] < data.y[-1]:
-                    data = data.isel(y=slice(None, None, -1))
-        ### End of workaround
-        # data.attrs['crs'] = self.crs
-        # if band_dim is not None:
-            # data = data.to_dataset(dim=band_dim)
-        # data.rio.to_raster(self.result_folder_path + "/result.tiff")
-        # ds = gdal.Open(self.result_folder_path + "/result.tiff", gdal.GA_Update)
-        data.rio.to_raster(RESULT_FOLDER + "/result.tiff")
-        ds = gdal.Open(RESULT_FOLDER + "/result.tiff", gdal.GA_Update)
-        n_of_bands = ds.RasterCount
-        for band in range(n_of_bands):
-            ds.GetRasterBand(band+1).ComputeStatistics(0)
-            ds.GetRasterBand(band+1).SetNoDataValue(np.nan)
+            # This is required as a workaround to this issue: https://github.com/Open-EO/openeo-web-editor/issues/280
+            ### Start of workaround
+            if 'y' in data.dims:
+                if len(data.y)>1:
+                    if data.y[0] < data.y[-1]:
+                        data = data.isel(y=slice(None, None, -1))
+            ### End of workaround
+            # data.attrs['crs'] = self.crs
+            # if band_dim is not None:
+                # data = data.to_dataset(dim=band_dim)
+            # data.rio.to_raster(self.result_folder_path + "/result.tiff")
+            # ds = gdal.Open(self.result_folder_path + "/result.tiff", gdal.GA_Update)
+            data.rio.to_raster(RESULT_FOLDER + "/result.tiff")
+            ds = gdal.Open(RESULT_FOLDER + "/result.tiff", gdal.GA_Update)
+            n_of_bands = ds.RasterCount
+            for band in range(n_of_bands):
+                ds.GetRasterBand(band+1).ComputeStatistics(0)
+                ds.GetRasterBand(band+1).SetNoDataValue(np.nan)
 
         return
 
@@ -330,9 +362,11 @@ def save_result(*args, **kwargs):
     return
 
 class InitProcesses():
-    def __init__(self,result_folder):
+    def __init__(self,result_folder,is_batch_job=False):
         global RESULT_FOLDER
+        global IS_BATCH_JOB
         RESULT_FOLDER = result_folder
+        IS_BATCH_JOB = is_batch_job
         self.process_registry = None
         self.init_process_registry()
         

@@ -22,3 +22,6 @@ gunicorn
 opencv-python
 openeo-processes-dask[implementations,ml]
 openeo-pg-parser-networkx
+raster2stac
+ujson
+openeo
