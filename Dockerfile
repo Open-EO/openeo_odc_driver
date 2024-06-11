@@ -5,6 +5,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     TINI_VERSION=v0.19.0
 
+ENV PATH="/root/miniconda3/bin:${PATH}"
+ARG PATH="/root/miniconda3/bin:${PATH}"
+
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
@@ -14,24 +17,37 @@ RUN apt-get update && \
       git \
       wget \
       ffmpeg \
-      libsm6 \ 
-      libxext6 
+      libsm6 \
+      libxext6 \
+      libopengl0 \
+      libegl1
+
+# Install miniconda
+RUN wget \
+    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && mkdir /root/.conda \
+    && bash Miniconda3-latest-Linux-x86_64.sh -b \
+    && rm -f Miniconda3-latest-Linux-x86_64.sh 
+RUN conda --version
+
+# RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
+#   odc-ui \
+#   odc-stac \
+#   odc-stats \
+#   odc-algo \
+#   odc-io \
+#   odc-cloud[ASYNC] \
+#   odc-dscache \
+#   odc-index
+
+COPY ./environment.yml /
+
+RUN conda env create -f /environment.yml
 
 RUN git clone https://github.com/clausmichele/odc-tools.git
 RUN pip install odc-tools/apps/dc_tools
-RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
-  odc-ui \
-  odc-stac \
-  odc-stats \
-  odc-algo \
-  odc-io \
-  odc-cloud[ASYNC] \
-  odc-dscache \
-  odc-index
-  
-COPY ./requirements.txt /
 
-RUN pip install --requirement /requirements.txt
+# RUN pip install --requirement /requirements.txt
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
@@ -41,6 +57,9 @@ WORKDIR /
 
 ENTRYPOINT ["/tini", "--"]
 
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/miniconda3/envs/openeo_odc_driver/lib/"
+
 WORKDIR /openeo_odc_driver/openeo_odc_driver/
 
-CMD ["gunicorn","-c","gunicorn.conf.py","odc_backend:app"]
+ENTRYPOINT ["conda", "run", "-n", "openeo_odc_driver", "gunicorn","-c","gunicorn.conf.py","odc_backend:app"]
+
