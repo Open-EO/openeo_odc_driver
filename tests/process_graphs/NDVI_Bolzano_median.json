@@ -1,23 +1,45 @@
 {
   "parameters": [],
   "process_graph": {
+    "1": {
+      "process_id": "reduce_dimension",
+      "arguments": {
+        "data": {
+          "from_node": "reduce1"
+        },
+        "reducer": {
+          "process_graph": {
+            "median1": {
+              "process_id": "median",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                }
+              },
+              "result": true
+            }
+          }
+        },
+        "dimension": "time"
+      }
+    },
     "loadcollection1": {
       "process_id": "load_collection",
       "arguments": {
         "temporal_extent": [
           "2022-06-01T00:00:00Z",
-          "2022-06-30T23:59:59Z"
+          "2022-06-15T23:59:59Z"
         ],
         "spatial_extent": {
-          "west": 11.283402372420943,
-          "east": 11.40672146557741,
-          "south": 46.45584062149402,
-          "north": 46.52154308303503
+          "west": 11.340908482329056,
+          "east": 11.359966996869476,
+          "south": 46.488167410749696,
+          "north": 46.49743990710044
         },
         "id": "s2_l2a",
         "bands": [
-          "B04",
-          "B08"
+          "red",
+          "nir"
         ],
         "properties": {}
       }
@@ -36,7 +58,7 @@
                 "data": {
                   "from_parameter": "data"
                 },
-                "label": "B08"
+                "label": "nir"
               }
             },
             "p9kfzq7mz": {
@@ -45,7 +67,7 @@
                 "data": {
                   "from_parameter": "data"
                 },
-                "label": "B04"
+                "label": "red"
               }
             },
             "bl5qf936u": {
@@ -87,33 +109,11 @@
         "dimension": "bands"
       }
     },
-    "reducedimension2": {
-      "process_id": "reduce_dimension",
-      "arguments": {
-        "data": {
-          "from_node": "reduce1"
-        },
-        "reducer": {
-          "process_graph": {
-            "median1": {
-              "process_id": "median",
-              "arguments": {
-                "data": {
-                  "from_parameter": "data"
-                }
-              },
-              "result": true
-            }
-          }
-        },
-        "dimension": "t"
-      }
-    },
     "saveresult1": {
       "process_id": "save_result",
       "arguments": {
         "data": {
-          "from_node": "reducedimension2"
+          "from_node": "1"
         },
         "format": "GTIFF"
       },

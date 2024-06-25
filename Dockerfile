@@ -45,7 +45,7 @@ COPY ./environment.yml /
 RUN conda env create -f /environment.yml
 
 RUN git clone https://github.com/clausmichele/odc-tools.git
-RUN pip install odc-tools/apps/dc_tools
+RUN conda run -n openeo_odc_driver pip install odc-tools/apps/dc_tools
 
 # RUN pip install --requirement /requirements.txt
 
@@ -53,13 +53,13 @@ ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
 COPY . /openeo_odc_driver
 
-WORKDIR /
+# WORKDIR /
 
-ENTRYPOINT ["/tini", "--"]
+# ENTRYPOINT ["/tini", "--"]
 
 ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/miniconda3/envs/openeo_odc_driver/lib/"
 
 WORKDIR /openeo_odc_driver/openeo_odc_driver/
 
-ENTRYPOINT ["conda", "run", "-n", "openeo_odc_driver", "gunicorn","-c","gunicorn.conf.py","odc_backend:app"]
+CMD ["conda", "run", "-n", "openeo_odc_driver", "--live-stream","gunicorn","-c","gunicorn.conf.py","odc_backend:app"]
 

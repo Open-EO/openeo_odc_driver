@@ -27,12 +27,7 @@ product: ## 3. Add a product definition for Sentinel-2
 	docker compose exec -T openeo_odc_driver conda run -n openeo_odc_driver datacube product add esa_s2_l2a.odc-product.yaml
 
 index: ## 4. Index some data (Change extents with BBOX='<left>,<bottom>,<right>,<top>')
-	docker compose exec -T openeo_odc_driver conda run -n openeo_odc_driver bash -c \
-		"stac-to-dc \
-			--bbox='$(BBOX)' \
-			--catalog-href='https://earth-search.aws.element84.com/v1/' \
-			--collections='sentinel-2-l2a' \
-			--datetime='2015-01-01/2024-05-06'"
+	docker compose exec -T openeo_odc_driver conda run -n openeo_odc_driver stac-to-dc --bbox='11,45,12,46' --catalog-href='https://earth-search.aws.element84.com/v1/' --collections='sentinel-2-l2a' --datetime='2015-01-01/2024-05-06'
 
 explorer: ## 5. Prepare the explorer
 	docker compose exec -T explorer cubedash-gen --init --all
