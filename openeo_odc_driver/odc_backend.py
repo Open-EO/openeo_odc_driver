@@ -54,7 +54,7 @@ def process_graph():
     except Exception as e:
         _log.error(e)
         job_id = 'None'
-            
+
     pg = jsonGraph["process_graph"]
     m = hashlib.md5()
     m.update(str(pg).encode('utf8'))
@@ -79,7 +79,7 @@ def process_graph():
                 from shutil import copyfile
                 copyfile(RESULT_FOLDER_PATH + '/' + path, result_folder_path + '/' + filename)
                 _log.debug("NEW PATH " + result_folder_path + '/' + filename)
-                return jsonify({'output':job_id + '/' + filename})        
+                return jsonify({'output':job_id + '/' + filename})
     try:
         _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
         try:
@@ -95,7 +95,7 @@ def process_graph():
 
         current_time = time.localtime()
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
-        
+
         df = df[df['job_id']!=job_id]
         df = pd.concat([df, pd.DataFrame([{'job_id':job_id,'creation_time':time_string,'pid':os.getpid()}])], ignore_index=True)
         df.to_csv(JOB_LOG_FILE)
@@ -124,11 +124,11 @@ def process_graph():
             return jsonify(stac_result)
         else:
             _log.debug(result_folder_path.split('/')[-1] + '/result'+output_format())
-            return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()}
+            return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()})
     except Exception as e:
         _log.error(e)
         return error400('ODC engine error in process: ' + str(e))
-    
+
 @app.route('/stop_job', methods=['DELETE'])
 def stop_job():
     _log = log_jobid.LogJobID(file=LOG_PATH)
@@ -185,7 +185,7 @@ def list_processes():
 
     from processing import InitProcesses, output_format
     import openeo_processes_dask
-    
+
     implemented_processes = []
     processes = InitProcesses(None)
     for p in processes.process_registry:
