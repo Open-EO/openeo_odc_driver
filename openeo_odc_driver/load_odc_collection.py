@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   23/02/2023
+# Date:   23/10/2023
 
 import datacube
 import numpy as np
@@ -10,65 +10,62 @@ from datetime import datetime
 from time import time
 import shapely
 from shapely.geometry import shape
+import sys
+import log_jobid
 #libraries for polygon and polygon mask
 import fiona
 import shapely.geometry
 import rasterio
 from datacube.utils import geometry
 from datacube.utils.geometry import Geometry, CRS
-import dea_tools.datahandling  # or some other submodule
+import dea_tools.datahandling
+# Import from config.py
 from config import *
-import logging
-import sys
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("odc_openeo_engine.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-_log = logging.getLogger(__name__)
 
 class LoadOdcCollection:
     def __init__(self,
                  collection_id=None,
-                 timeStart=None,
-                 timeEnd=None,
+                 time_start=None,
+                 time_end=None,
                  south=None,
                  north=None,
                  west=None,
                  east=None,
                  bands=None,
                  resolutions=None,
-                 outputCrs=None,
+                 output_crs=None,
                  polygon=None,
-                 resamplingMethod=None,
-                 crs=None):
+                 resampling_method=None,
+                 crs=None,
+                 job_id=None):
+        _log = log_jobid.LogJobID(file=LOG_PATH)
+        _log.set_job_id(job_id)
+
         if OPENDATACUBE_CONFIG_FILE is not None:
             self.dc = datacube.Datacube(config = OPENDATACUBE_CONFIG_FILE)
         else: # Use ENV variables
             self.dc = datacube.Datacube()
+
         self.collection  = collection_id
-        self.timeStart   = timeStart
-        self.timeEnd     = self.exclusive_date(timeEnd)
+        self.time_start   = time_start
+        self.time_end     = self.exclusive_date(time_end)
         self.south       = south
         self.north       = north
         self.west        = west
         self.east        = east
         self.bands       = bands
         self.resolutions = resolutions
-        self.outputCrs   = outputCrs
-        self.resamplingMethod = resamplingMethod
+        self.output_crs   = output_crs
+        self.resampling_method = resampling_method
         self.polygon     = polygon
         self.geoms       = None
         self.crs         = crs
         self.data        = None
         self.query       = None
+        self.job_id      = job_id
         self.build_query()
         self.load_collection()
+
         if self.polygon is not None: # We mask the data with the given polygon, i.e. we set to zero the values outside the polygon
             self.apply_mask()
     
@@ -100,8 +97,8 @@ class LoadOdcCollection:
                 query['longitude'] = (self.east,self.west)
         if self.resolutions is not None:
             query['resolution'] = self.resolutions
-        if self.outputCrs  is not None:
-            query['output_crs'] = self.outputCrs
+        if self.output_crs  is not None:
+            query['output_crs'] = self.output_crs
         self.query = query
         
     def apply_scale_and_offset(self):
@@ -119,21 +116,21 @@ class LoadOdcCollection:
             if nodata is not None:
                 self.data[band] = self.data[band].where(self.data[band]!=nodata)
             if scale_factor != 0 and scale_factor is not None:
-                logging.info(f'Scale factor: {scale_factor}')
+                _log.debug(f'Scale factor: {scale_factor}')
                 self.data[band] = self.data[band] * scale_factor
             if add_offset != 0 and add_offset is not None:
-                logging.info(f'add_offset: {add_offset}')
+                _log.debug(f'add_offset: {add_offset}')
                 self.data[band] = self.data[band] + add_offset
 
     def load_collection(self):
-        datasets  = self.dc.find_datasets(time=(self.timeStart,self.timeEnd),**self.query)
+        datasets  = self.dc.find_datasets(time=(self.time_start,self.time_end),**self.query)
         self.query['dask_chunks'] = {"time":1,"x": 1000, "y":1000}             # This let us load the data as Dask chunks instead of numpy arrays
-        if self.resamplingMethod  is not None:
-            if self.resamplingMethod == 'near':
+        if self.resampling_method  is not None:
+            if self.resampling_method == 'near':
                 self.query['resampling'] = 'nearest'
             else:
                 ##TODO add other method parsing here
-                self.query['resampling'] = self.resamplingMethod
+                self.query['resampling'] = self.resampling_method
         try:
             self.data = self.dc.load(datasets=datasets,**self.query)
             if self.data.equals(xr.Dataset()):

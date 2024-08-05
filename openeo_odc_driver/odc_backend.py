@@ -1,6 +1,6 @@
 # coding=utf-8
 # Author: Claus Michele - Eurac Research - michele (dot) claus (at) eurac (dot) edu
-# Date:   23/02/2023
+# Date:   06/05/2024
 
 import os
 import signal
@@ -14,21 +14,17 @@ import time
 import logging
 import hashlib
 import uuid
+from pathlib import Path
+import uuid
+import copy
 
-from openeo_odc_driver import ProcessOpeneoGraph
+from openeo_pg_parser_networkx.graph import OpenEOProcessGraph
+
+import log_jobid
+from processing import InitProcesses, JobId, output_format
 from sar2cube.utils import sar2cube_collection_extent
+
 from config import *
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("odc_backend.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-
-_log = logging.getLogger(__name__)
 
 app = Flask(FLASK_APP_NAME)
 
@@ -42,6 +38,7 @@ def error400(error):
 
 @app.route('/graph', methods=['POST'])
 def process_graph():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     if not os.path.exists(JOB_LOG_FILE):
         lst = ['job_id', 'pid', 'creation_time']
         df = pd.DataFrame(columns=lst)
@@ -84,28 +81,60 @@ def process_graph():
                 _log.debug("NEW PATH " + result_folder_path + '/' + filename)
                 return jsonify({'output':job_id + '/' + filename})        
     try:
+        _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
+        try:
+            job_id = jsonGraph['id']
+            _log.set_job_id(job_id)
+            _log.info(f"Obtaining job id from graph: {job_id}")
+        except Exception as e:
+            _log.error(e)
+            job_id = 'None'
+            _log.set_job_id(job_id)
+
+        JobId(job_id)
+
         current_time = time.localtime()
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
         
         df = df[df['job_id']!=job_id]
-        df = df.append({'job_id':job_id,'creation_time':time_string,'pid':os.getpid()},ignore_index=True)
+        df = pd.concat([df, pd.DataFrame([{'job_id':job_id,'creation_time':time_string,'pid':os.getpid()}])], ignore_index=True)
         df.to_csv(JOB_LOG_FILE)
-        
-        eo = ProcessOpeneoGraph(jsonGraph)
-        
+
+        is_batch_job = False
+        if job_id == "None":
+            result_folder_path = RESULT_FOLDER_PATH + str(uuid.uuid4())
+        else:
+            is_batch_job = True
+            result_folder_path = RESULT_FOLDER_PATH + job_id # If it is a batch job, there will be a field with it's id
+        try:
+            os.mkdir(result_folder_path)
+        except Exception as e:
+            _log.error(e)
+            pass
+        process_registry = InitProcesses(result_folder_path,is_batch_job)
+        stac_result = OpenEOProcessGraph(jsonGraph).to_callable(process_registry.process_registry)()
+
         df_cache = df_cache[df_cache['hex_string']!=hex_string]
         df_cache = df_cache.append({'hex_string':hex_string,'path':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format},ignore_index=True)
         df_cache.to_csv(JOB_CACHE_FILE)
-        
-        return jsonify({'output':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format})
+
+        if stac_result is not None:
+            _log.debug("Returning STAC Collection for the result.")
+            _log.debug(stac_result)
+            return jsonify(stac_result)
+        else:
+            _log.debug(result_folder_path.split('/')[-1] + '/result'+output_format())
+            return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()}
     except Exception as e:
         _log.error(e)
         return error400('ODC engine error in process: ' + str(e))
     
 @app.route('/stop_job', methods=['DELETE'])
 def stop_job():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     try:
         job_id = request.args['id']
+        _log.job_id(job_id)
         _log.debug('Job id to cancel: {}'.format(job_id))
         if os.path.exists(JOB_LOG_FILE):
             df = pd.read_csv(JOB_LOG_FILE,index_col=0)
@@ -121,6 +150,7 @@ def stop_job():
 
 @app.route('/collections', methods=['GET'])
 def list_collections():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
     if USE_CACHED_COLLECTIONS:
         if os.path.isfile(METADATA_COLLECTIONS_FILE):
             f = open(METADATA_COLLECTIONS_FILE)
@@ -131,7 +161,7 @@ def list_collections():
     collections = {}
     collections['collections'] = []
     if (not res.text.strip()):
-        logging.info("No products exposed by the ODC explorer.")
+        _log.error("No products exposed by the ODC explorer.")
     else:
         datacubesList = res.text.split('\n')
         collectionsList = []
@@ -143,6 +173,40 @@ def list_collections():
             json.dump(collections, outfile)
 
     return jsonify(collections)
+
+@app.route('/processes', methods=['GET'])
+def list_processes():
+    _log = log_jobid.LogJobID(file=LOG_PATH)
+    if USE_CACHED_PROCESSES:
+        if os.path.isfile(METADATA_PROCESSES_FILE):
+            f = open(METADATA_PROCESSES_FILE)
+            with open(METADATA_PROCESSES_FILE) as processes_list:
+                return jsonify(json.load(processes_list))
+
+    from processing import InitProcesses, output_format
+    import openeo_processes_dask
+    
+    implemented_processes = []
+    processes = InitProcesses(None)
+    for p in processes.process_registry:
+        implemented_processes.append(p[1])
+    json_path = Path(openeo_processes_dask.__file__).parent / "specs" / "openeo-processes"
+    process_json_paths = [pg_path for pg_path in (json_path).glob("*.json")]
+
+    # Go through all the jsons in the top-level of the specs folder and add them to be importable from here
+    # E.g. from openeo_processes_dask.specs import *
+    # This is frowned upon in most python code, but I think here it's fine and allows a nice way of importing these
+    implemented_processes_json = []
+    for spec_path in process_json_paths:
+        spec_json = json.load(open(spec_path))
+        process_name = spec_json["id"]
+        if process_name in implemented_processes:
+            implemented_processes_json.append(spec_json)
+    implemented_processes_json = {"processes": implemented_processes_json}
+    with open(METADATA_PROCESSES_FILE, 'w') as outfile:
+        json.dump(implemented_processes_json, outfile)
+
+    return jsonify(implemented_processes_json)
 
 
 @app.route("/collections/<string:name>", methods=['GET'])
@@ -161,7 +225,8 @@ def describe_collection(name):
     return jsonify(stacCollection)
 
 def construct_stac_collection(collectionName):
-    logging.info("[*] Constructing the metadata for {}".format(collectionName))
+    _log = log_jobid.LogJobID(file=LOG_PATH)
+    _log.debug("Constructing the metadata for {}".format(collectionName))
     if not os.path.exists(METADATA_CACHE_FOLDER):
         os.mkdir(METADATA_CACHE_FOLDER)
     if USE_CACHED_COLLECTIONS:
@@ -183,14 +248,25 @@ def construct_stac_collection(collectionName):
     stacCollection['stac_extensions'] = ['datacube']
     stacCollection['license'] = DEFAULT_DATA_LICENSE
     stacCollection['providers'] = [DEFAULT_DATA_PROVIDER]
-    stacCollection['links'] = [DEFAULT_LINKS]
-    
+    default_links = DEFAULT_LINKS
+    if OGC_COVERAGE:
+        for mime in SUPPORTED_MIME_OGC_COVERAGE:
+            ogc_coverage_link = copy.deepcopy(DEFAULT_LINK_OGC_COVERAGE)
+            if "netcdf" in mime:
+                ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName) + "?f=netcdf"
+            elif "tif" in mime:
+                ogc_coverage_link['href'] = ogc_coverage_link['href'].replace("COLLECTION_NAME",collectionName) + "?f=geotiff"
+            ogc_coverage_link['type'] = mime
+            default_links.append(ogc_coverage_link)
+        # Add self as suggested here: https://docs.ogc.org/DRAFTS/20-024.html#_response
+        default_links.append({'rel' : 'self', 'href' : OPENEO_BACKEND + 'collections/' + collectionName, 'type' : 'application/json'})
+    stacCollection['links'] = default_links
     if "SAR2Cube" in collectionName:
         try:
             sar2cubeBbox = sar2cube_collection_extent(collectionName)
             stacCollection['extent']['spatial']['bbox'] = [sar2cubeBbox]
         except Exception as e:
-            logging.error(e)
+            _log.error(e)
             pass
 
     ### SUPPLEMENTARY METADATA FROM FILE

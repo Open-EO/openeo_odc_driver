@@ -5,6 +5,9 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     TINI_VERSION=v0.19.0
 
+ENV PATH="/root/miniconda3/bin:${PATH}"
+ARG PATH="/root/miniconda3/bin:${PATH}"
+
 ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
 RUN chmod +x /tini
 
@@ -14,31 +17,49 @@ RUN apt-get update && \
       git \
       wget \
       ffmpeg \
-      libsm6 \ 
-      libxext6 
+      libsm6 \
+      libxext6 \
+      libopengl0 \
+      libegl1
 
-COPY requirements.txt /conf/
+# Install miniconda
+RUN wget \
+    https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh \
+    && mkdir /root/.conda \
+    && bash Miniconda3-latest-Linux-x86_64.sh -b \
+    && rm -f Miniconda3-latest-Linux-x86_64.sh 
+RUN conda --version
 
-RUN pip install --no-cache-dir --requirement /conf/requirements.txt
-RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
-  odc-ui \
-  odc-stac \
-  odc-stats \
-  odc-algo \
-  odc-io \
-  odc-cloud[ASYNC] \
-  odc-dscache \
-  odc-index
+# RUN pip install --extra-index-url="https://packages.dea.ga.gov.au" \
+#   odc-ui \
+#   odc-stac \
+#   odc-stats \
+#   odc-algo \
+#   odc-io \
+#   odc-cloud[ASYNC] \
+#   odc-dscache \
+#   odc-index
 
-RUN git clone https://github.com/Open-EO/openeo-pg-parser-python.git
-RUN cd openeo-pg-parser-python && pip install .
+COPY ./environment.yml /
 
-RUN git clone https://github.com/SARScripts/openeo_odc_driver.git -b dev
+RUN conda env create -f /environment.yml
 
-WORKDIR /
+RUN git clone https://github.com/clausmichele/odc-tools.git
+RUN conda run -n openeo_odc_driver pip install odc-tools/apps/dc_tools
 
-ENTRYPOINT ["/tini", "--"]
+# RUN pip install --requirement /requirements.txt
+
+ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
+
+COPY . /openeo_odc_driver
+
+# WORKDIR /
+
+# ENTRYPOINT ["/tini", "--"]
+
+ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/miniconda3/envs/openeo_odc_driver/lib/"
 
 WORKDIR /openeo_odc_driver/openeo_odc_driver/
 
-CMD ["gunicorn","-c","gunicorn.conf.py","odc_backend:app"]
+CMD ["conda", "run", "-n", "openeo_odc_driver", "--live-stream","gunicorn","-c","gunicorn.conf.py","odc_backend:app"]
+
