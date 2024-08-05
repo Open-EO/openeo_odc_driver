@@ -33,6 +33,7 @@ USE_CACHED_PROCESSES = True
 
 LOG_PATH = '/logs/odc-driver/odc_backend.log'
 JOB_LOG_FILE = 'jobs_log.csv'
+JOB_CACHE_FILE = 'jobs_cache.csv'
 
 METADATA_FOLDER = './'
 METADATA_CACHE_FOLDER = METADATA_FOLDER + 'cache'

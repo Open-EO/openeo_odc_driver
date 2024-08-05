@@ -11,6 +11,9 @@ import requests
 import yaml
 import pandas as pd
 import time
+import logging
+import hashlib
+import uuid
 from pathlib import Path
 import uuid
 import copy
@@ -33,7 +36,6 @@ def error500(error):
 def error400(error):
     return error, 400
 
-
 @app.route('/graph', methods=['POST'])
 def process_graph():
     _log = log_jobid.LogJobID(file=LOG_PATH)
@@ -43,7 +45,41 @@ def process_graph():
         df.to_csv(JOB_LOG_FILE)
     else:
         df = pd.read_csv(JOB_LOG_FILE,index_col=0)
+
     jsonGraph = request.json
+
+    _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
+    try:
+        job_id = jsonGraph['id']
+    except Exception as e:
+        _log.error(e)
+        job_id = 'None'
+            
+    pg = jsonGraph["process_graph"]
+    m = hashlib.md5()
+    m.update(str(pg).encode('utf8'))
+    hex_string = str(m.digest())
+
+    if not os.path.exists(JOB_CACHE_FILE):
+        lst = ['hex_string', 'path']
+        df_cache = pd.DataFrame(columns=lst)
+        df_cache.to_csv(JOB_CACHE_FILE)
+    else:
+        df_cache = pd.read_csv(JOB_CACHE_FILE,index_col=0)
+        if len(df_cache.loc[df_cache['hex_string']==hex_string]['path'].values)>0:
+            path = df_cache.loc[df_cache['hex_string']==hex_string]['path'].values[0]
+            _log.debug("CACHE PATH " + path)
+            filename = path.split('/')[-1]
+            if os.path.exists(RESULT_FOLDER_PATH + '/' + path):
+                if job_id == "None":
+                    job_id = str(uuid.uuid4())
+                result_folder_path = RESULT_FOLDER_PATH + job_id # If it is a batch job, there will be a field with it's id
+                if not os.path.exists(result_folder_path):
+                    os.mkdir(result_folder_path)
+                from shutil import copyfile
+                copyfile(RESULT_FOLDER_PATH + '/' + path, result_folder_path + '/' + filename)
+                _log.debug("NEW PATH " + result_folder_path + '/' + filename)
+                return jsonify({'output':job_id + '/' + filename})        
     try:
         _log.debug('Gunicorn worker pid for this job: {}'.format(os.getpid()))
         try:
@@ -59,9 +95,11 @@ def process_graph():
 
         current_time = time.localtime()
         time_string = time.strftime('%Y-%m-%dT%H%M%S', current_time)
+        
         df = df[df['job_id']!=job_id]
         df = pd.concat([df, pd.DataFrame([{'job_id':job_id,'creation_time':time_string,'pid':os.getpid()}])], ignore_index=True)
         df.to_csv(JOB_LOG_FILE)
+
         is_batch_job = False
         if job_id == "None":
             result_folder_path = RESULT_FOLDER_PATH + str(uuid.uuid4())
@@ -75,13 +113,18 @@ def process_graph():
             pass
         process_registry = InitProcesses(result_folder_path,is_batch_job)
         stac_result = OpenEOProcessGraph(jsonGraph).to_callable(process_registry.process_registry)()
+
+        df_cache = df_cache[df_cache['hex_string']!=hex_string]
+        df_cache = df_cache.append({'hex_string':hex_string,'path':eo.result_folder_path.split('/')[-1] + '/result'+eo.out_format},ignore_index=True)
+        df_cache.to_csv(JOB_CACHE_FILE)
+
         if stac_result is not None:
             _log.debug("Returning STAC Collection for the result.")
             _log.debug(stac_result)
             return jsonify(stac_result)
         else:
             _log.debug(result_folder_path.split('/')[-1] + '/result'+output_format())
-            return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()})
+            return jsonify({'output':result_folder_path.split('/')[-1] + '/result'+output_format()}
     except Exception as e:
         _log.error(e)
         return error400('ODC engine error in process: ' + str(e))
