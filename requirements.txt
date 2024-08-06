@@ -1,13 +1,11 @@
 aiohttp
 aiobotocore[boto3,awscli]==1.0.7
-odc-apps-dc-tools==0.2.1
 pyyaml
 wget
 requests
 datacube
 numpy
 scipy
-folium
 pandas<2.0.0
 xarray
 rioxarray
@@ -22,3 +20,8 @@ flask
 dea-tools
 gunicorn
 opencv-python
+openeo-processes-dask[implementations,ml]
+openeo-pg-parser-networkx
+raster2stac
+ujson
+openeo

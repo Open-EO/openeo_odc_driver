@@ -3,6 +3,7 @@ channels:
 - conda-forge
 dependencies:
 - python=3.10
+- libgcc=5.2.0
 - datacube
 - numpy
 - pandas
@@ -25,21 +26,10 @@ dependencies:
 - gunicorn
 - flask
 - opencv
-- rpy2
-- r-base
-- r-stars
-- r-lubridate
-- r-jsonlite
-- r-curl
-- r-caret
-- r-randomforest
 - pip
 - pip:
-    - --extra-index-url https://packages.dea.ga.gov.au
-    - openeo
-    - openeo_r_udf
+    - openeo[localprocessing]
     - dea-tools
-    - odc-algo
-    - datacube-explorer
-    - git+https://github.com/Open-EO/openeo-pg-parser-python.git
-     
+    - raster2stac
+    - ujson
+    - rio-stac
