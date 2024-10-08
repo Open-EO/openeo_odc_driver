@@ -50,7 +50,7 @@ DEFAULT_BANDS_DIMENSION_NAME = 'bands'
 
 # STAC configuration
 POST_RESULTS_TO_STAC = True
-STAC_API_URL = "https://stac.openeo.eurac.edu/api/v1/pgstac/collections/"
+STAC_API_URL = "https://stac.openeo.eurac.edu/api/v1/pgstac/collections"
 
 # OGC GeoDataCube API specific bits
 OGC_COVERAGE = True

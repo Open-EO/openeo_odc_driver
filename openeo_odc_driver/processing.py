@@ -272,7 +272,7 @@ def save_result(*args, **kwargs):
                     stac_items = f.readlines()
                 for it in stac_items:
                     stac_data_to_post = json.loads(it)
-                    requests.post(f"{STAC_API_URL}{job_id}/items",json=stac_data_to_post)
+                    requests.post(f"{STAC_API_URL}/{job_id}/items",json=stac_data_to_post)
             return stac_collection_to_post
         else:
             OUTPUT_FORMAT = '.tiff'
