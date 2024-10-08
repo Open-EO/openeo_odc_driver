@@ -48,6 +48,17 @@ RUN git clone https://github.com/clausmichele/odc-tools.git
 RUN conda run -n openeo_odc_driver pip install odc-tools/apps/dc_tools
 
 # RUN pip install --requirement /requirements.txt
+RUN git clone https://github.com/interTwin-eu/openeo-processes-dask.git -b feature/load_stac_dev
+RUN conda run -n openeo_odc_driver pip install openeo-processes-dask/.[implementations]
+
+RUN git clone https://github.com/clausmichele/openeo-pg-parser-networkx.git -b rename_root_node
+RUN conda run -n openeo_odc_driver pip install openeo-pg-parser-networkx/.
+
+RUN conda run -n openeo_odc_driver pip install adlfs
+
+RUN rm -rf /root/miniconda3/envs/openeo_odc_driver/lib/python3.11/site-packages/pydantic
+
+RUN conda run -n openeo_odc_driver pip install pydantic==2.8.2
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 

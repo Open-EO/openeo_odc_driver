@@ -2,10 +2,11 @@ name: openeo_odc_driver
 channels:
 - conda-forge
 dependencies:
-- python=3.10
+- python=3.11
+- pydantic=2.8.2
 - libgcc=5.2.0
 - datacube
-- numpy
+- numpy<2
 - pandas
 - geopandas
 - geocube

@@ -9,6 +9,11 @@ import rasterio
 import rioxarray
 import xarray as xr
 import cv2
+import os
+import pyproj
+import requests
+import json
+from datetime import datetime, timezone
 from openeo_pg_parser_networkx import ProcessRegistry
 from openeo_pg_parser_networkx.process_registry import Process
 from openeo_processes_dask.process_implementations.core import process
@@ -43,11 +48,9 @@ def load_collection(*args, **kwargs):
     _log = log_jobid.LogJobID(file=LOG_PATH)
     _log.set_job_id(JOB_ID)
 
-    from datetime import datetime
     from openeo_processes_dask.process_implementations.cubes._filter import (
         _reproject_bbox,
     )
-    import pyproj
     default_time_start = '1970-01-01'
     default_time_end   = str(datetime.now()).split(' ')[0] # Today is the default date for default_time_end, to include all the dates if not specified
     time_start         = default_time_start
@@ -208,21 +211,60 @@ def save_result(*args, **kwargs):
         if IS_BATCH_JOB:
             from raster2stac import Raster2STAC
             job_id = get_job_id()
+            # To create valid STAC Items we need a datetime associated with the data. If it has been reduced, like when using reduce_dimension, we need to get it back
+            if len(data.openeo.temporal_dims)==0:
+                t_dim = "time"
+                t_value = data.attrs.get("reduced_dimensions_min_values",None).get(t_dim,None)
+                if t_value is None:
+                    t_value = np.datetime64('now')
+                data = data.expand_dims(dim={t_dim: [t_value]}, axis=0)
             rs2stac = Raster2STAC(
                 data = data, # The input xarray object which will be converted into COGs
                 collection_id = job_id, # The Collection id we want to set
                 description = f"openEO results for the job with id {job_id}",
                 collection_url = STAC_API_URL, # The URL where the collection will be exposed
                 output_folder = RESULT_FOLDER,
+                bucket_file_prefix = "OPENEO_RESULT/",
+                s3_upload = True,
+                bucket_name = "eurac-eo",
+                aws_access_key = os.environ.get("AWS_ACCESS_KEY"),
+                aws_secret_key = os.environ.get("AWS_SECRET_KEY"),
+                aws_region = "s3-eu-west-1",
                 # If this runs in a Docker, the files path will be the ones of the Docker internal structure. It's necessary to change the paths to the external folder mounted by Docker so that the files referred in the STAC document can also be accessble from outside the Docker (but with data access to the drive)
                 # /mnt/large_drive/work_spaces/mclaus/data/odc-driver/:/data/odc-driver/
                 write_collection_assets=True
             ).generate_cog_stac()
             # Now we should have the resulting COGs and STAC json STAC files. We can POST them to the STAC Catalog
-            import requests
-            import json
+
             with open(f"{RESULT_FOLDER}/{job_id}.json","r") as f:
                 stac_collection_to_post = json.load(f)
+            with open(f"{RESULT_FOLDER}/process_graph.json","r") as pg:
+                process_graph = json.load(pg)
+            # TODO: add process graph to STAC
+            # TODO: also add processing extension
+
+            local_time = datetime.now(timezone.utc).astimezone()
+            time_string = local_time.isoformat()
+            EURAC_RESEARCH_PROVIDER = {
+                                      "name": "Eurac Research - Institute for Earth Observation",
+                                      "url": "http://www.eurac.edu",
+                                      "roles": [
+                                        "processor"
+                                      ],
+                                      "description": "This data was processed on an openEO backend maintained by Eurac Research.",
+                                      "processing:facility": "Eurac Research openEO backend",
+                                      "processing:software": {
+                                        "openeo-spring-driver": "1.2.0",
+                                        "openeo_odc_driver": "0.0.1",
+                                      },
+                                      "processing:expression": {
+                                        "format": "openeo",
+                                        "expression": process_graph,
+                                      },
+                                      "processing:datetime": time_string,
+                                    }
+            stac_collection_to_post["providers"] = [EURAC_RESEARCH_PROVIDER]
+
             if POST_RESULTS_TO_STAC:
                 requests.post(STAC_API_URL,json=stac_collection_to_post)
                 stac_items = []
